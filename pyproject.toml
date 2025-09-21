@@ -1,0 +1,70 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "competitor-analysis-system"
+version = "0.1.0"
+description = "Multi-agent AI-powered competitor analysis system"
+authors = [{name = "Akshay Kumar Singh", email = "akshay.amu.1111@gmail.com"}]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "python-dotenv>=1.0.1",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.6.0",
+    "pymongo>=4.9.0",
+    "motor>=3.6.0",
+    "redis>=5.2.0",
+    "langchain>=0.3.0",
+    "langgraph>=0.2.28",
+    "langchain-openai>=0.2.0",
+    "tavily-python>=0.5.0",
+    "openai>=1.54.0",
+    "pandas>=2.2.0",
+    "numpy>=1.26.4",
+    "beautifulsoup4>=4.12.3",
+    "httpx>=0.28.0",
+    "websockets>=13.1",
+    "python-multipart>=0.0.12",
+    "aiohttp>=3.10.0",
+    "python-dateutil>=2.9.0",
+    "pytz>=2024.1",
+    "jinja2>=3.1.4",
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=5.0.0",
+    "loguru>=0.7.2",
+    "prometheus-client>=0.21.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black",
+    "isort",
+    "flake8",
+    "mypy",
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+]
+
+[project.scripts]
+start-server = "run:main"
+
+[tool.black]
+line-length = 88
+target-version = ['py312']
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "backend/tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+asyncio_mode = "auto"

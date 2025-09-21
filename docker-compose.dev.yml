@@ -1,0 +1,30 @@
+services:
+  # Backend with hot reload
+  backend:
+    volumes:
+      - ./backend:/app/backend
+      - ./pyproject.toml:/app/pyproject.toml
+      - /app/backend/__pycache__
+    working_dir: /app/backend
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/backend
+    environment:
+      PYTHONDONTWRITEBYTECODE: 1
+      PYTHONUNBUFFERED: 1
+      PYTHONPATH: /app/backend
+
+  # Frontend with hot reload
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/package.json:/app/package.json
+      - /app/node_modules
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      REACT_APP_API_URL: http://localhost:8000/api/v1
+      REACT_APP_WS_URL: ws://localhost:8000
+    command: npm start
