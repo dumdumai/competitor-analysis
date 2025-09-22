@@ -216,7 +216,14 @@ class SearchAgent:
         logger.info(f"📊 Progress {progress}%: {message}")
     
     async def _handle_retry_feedback(self, state: AgentState):
-        """Handle quality feedback for search retry"""
+        """Handle quality feedback for search retry using LLM-provided guidance"""
+        # First check for specific search guidance from selected issues
+        if state.search_guidance and state.search_guidance.get('retry_suggestions'):
+            logger.info(f"🎯 Using targeted search guidance from selected quality issues")
+            await self._apply_targeted_search_guidance(state)
+            return
+        
+        # Fallback to legacy feedback handling
         search_issues = [issue for issue in state.retry_context.quality_feedback 
                         if issue.retry_agent == "search"]
         
@@ -255,6 +262,59 @@ class SearchAgent:
             issue for issue in state.retry_context.quality_feedback 
             if issue.retry_agent != "search"
         ]
+    
+    async def _apply_targeted_search_guidance(self, state: AgentState):
+        """Apply specific search guidance from LLM quality suggestions"""
+        guidance = state.search_guidance
+        suggestions = guidance.get('retry_suggestions', [])
+        
+        logger.info(f"🎯 Applying {len(suggestions)} targeted search suggestions")
+        
+        for suggestion in suggestions:
+            issue_type = suggestion.get('issue_type')
+            action = suggestion.get('suggestion', '')
+            affected_competitors = suggestion.get('affected_competitors', [])
+            
+            logger.info(f"🔍 Applying suggestion for {issue_type}: {action}")
+            
+            if issue_type == "insufficient_competitors":
+                # Apply LLM suggestions for competitor discovery
+                if "expand" in action.lower() or "more" in action.lower():
+                    state.analysis_context.max_competitors = min(
+                        state.analysis_context.max_competitors + 3, 15
+                    )
+                
+                # Extract any specific search terms suggested by LLM
+                search_terms = self._extract_search_terms_from_suggestion(action)
+                if search_terms:
+                    if not hasattr(state.analysis_context, 'llm_search_terms'):
+                        state.analysis_context.llm_search_terms = []
+                    state.analysis_context.llm_search_terms.extend(search_terms)
+                    logger.info(f"🎯 Added LLM-suggested search terms: {search_terms}")
+            
+            elif issue_type == "data_gaps":
+                # Store the LLM suggestion for data collection improvements
+                state.metadata['llm_data_suggestions'] = action
+                logger.info(f"📝 Stored LLM data collection guidance: {action}")
+        
+        # Store human feedback for context
+        if guidance.get('human_feedback'):
+            state.metadata['human_feedback'] = guidance['human_feedback']
+            logger.info(f"💬 Human feedback: {guidance['human_feedback']}")
+    
+    def _extract_search_terms_from_suggestion(self, suggestion: str) -> List[str]:
+        """Extract search terms from LLM suggestion text"""
+        terms = []
+        
+        # Look for quoted terms in the suggestion
+        import re
+        quoted_terms = re.findall(r"'([^']*)'|\"([^\"]*)\"", suggestion)
+        for match in quoted_terms:
+            term = match[0] or match[1]
+            if term and len(term.strip()) > 2:  # Only add meaningful terms
+                terms.append(term.strip())
+        
+        return terms
     
     async def _discover_products(self, state: AgentState) -> List[str]:
         """Discover competing products using product-specific search strategy"""

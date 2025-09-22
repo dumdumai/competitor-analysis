@@ -85,6 +85,8 @@ class AgentState(BaseModel):
     search_logs: List[SearchLog] = Field(default_factory=list, description="Detailed logs of all searches performed")
     processed_data: Dict[str, Any] = Field(default_factory=dict, description="Processed and structured data")
     quality_scores: Dict[str, float] = Field(default_factory=dict, description="Quality scores for each competitor")
+    llm_quality_assessments: Dict[str, Any] = Field(default_factory=dict, description="LLM quality assessments for each competitor")
+    llm_quality_analysis: Optional[Any] = Field(None, description="Overall LLM quality analysis result")
     market_insights: Dict[str, Any] = Field(default_factory=dict, description="Market analysis insights")
     competitive_analysis: Dict[str, Any] = Field(default_factory=dict, description="Competitive analysis results")
     recommendations: List[str] = Field(default_factory=list, description="Generated recommendations")
@@ -96,6 +98,8 @@ class AgentState(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
     retry_context: AgentRetryContext = Field(default_factory=AgentRetryContext, description="Context for agent retries")
+    search_guidance: Dict[str, Any] = Field(default_factory=dict, description="Guidance for search agent retries")
+    analysis_guidance: Dict[str, Any] = Field(default_factory=dict, description="Guidance for analysis agent retries")
     
     class Config:
         json_encoders = {
@@ -175,6 +179,12 @@ class AgentState(BaseModel):
         return [issue for issue in self.retry_context.quality_feedback 
                 if issue.severity in ['critical', 'high']]
     
+    def get_all_quality_issues_for_review(self) -> List['QualityIssue']:
+        """Get all quality issues that may need human review (critical, high, and significant medium issues)"""
+        return [issue for issue in self.retry_context.quality_feedback 
+                if issue.severity in ['critical', 'high'] or 
+                (issue.severity == 'medium' and issue.issue_type in ['overall_quality_low', 'recommendations_quality', 'analysis_depth'])]
+    
     def can_retry(self) -> bool:
         """Check if more retries are allowed"""
         return self.retry_context.retry_count < self.retry_context.max_retries
@@ -238,8 +248,9 @@ class AgentState(BaseModel):
     
     def has_critical_issues_needing_review(self) -> bool:
         """Check if there are critical issues that need human review"""
-        critical_issues = self.get_critical_quality_issues()
-        return len(critical_issues) > 0
+        # Check for critical/high issues OR significant medium issues
+        review_worthy_issues = self.get_all_quality_issues_for_review()
+        return len(review_worthy_issues) > 0
     
     def apply_human_decision(self):
         """Apply the human decision to modify state"""

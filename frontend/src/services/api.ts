@@ -80,7 +80,15 @@ export const analysisAPI = {
   getQualityReview: (requestId: string) =>
     api.get(`/analysis/${requestId}/quality-review`),
   
-  // Submit quality review decision
+  // Check if workflow is interrupted (LangGraph interrupts)
+  getInterruptStatus: (requestId: string) =>
+    api.get(`/analysis/${requestId}/interrupt-status`),
+  
+  // Submit human decision for interrupted workflow (new LangGraph mechanism)
+  submitHumanDecision: (requestId: string, decision: any) =>
+    api.post(`/analysis/${requestId}/human-decision`, decision),
+  
+  // Submit quality review decision (use quality-review specific endpoint)
   submitQualityDecision: (requestId: string, decision: any) =>
     api.post(`/analysis/${requestId}/quality-review/decision`, decision),
   

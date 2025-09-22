@@ -22,7 +22,7 @@ class LLMService:
                 import httpx
                 
                 # Create Azure OpenAI base URL with deployment path
-                api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
+                api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-08-01-preview")
                 base_url = f"{azure_endpoint.rstrip('/')}/openai/deployments/{azure_deployment}"
                 
                 self.client = AsyncOpenAI(
@@ -378,3 +378,41 @@ Provide strategic competitive analysis in JSON format."""
         except Exception as e:
             logger.error(f"Error generating executive summary: {e}")
             return f"Error generating executive summary: {str(e)}"
+    
+    async def get_structured_response(self, prompt: str, response_model, max_tokens: int = 2000):
+        """Get a structured response from the LLM using a Pydantic model with structured output"""
+        try:
+            # Use OpenAI's parse method for structured output with Pydantic models
+            response = await self.client.beta.chat.completions.parse(
+                model=self.model,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=self.temperature,
+                max_tokens=max_tokens,
+                response_format=response_model
+            )
+            
+            message = response.choices[0].message
+            
+            # Check if parsing was successful
+            if message.parsed:
+                return message.parsed
+            else:
+                # Fallback to manual parsing if parse failed
+                logger.warning("OpenAI parse failed, falling back to manual JSON parsing")
+                content = message.content.strip()
+                
+                # Clean up response
+                if content.startswith("```json"):
+                    content = content[7:]
+                if content.endswith("```"):
+                    content = content[:-3]
+                
+                data = json.loads(content)
+                return response_model(**data)
+            
+        except Exception as e:
+            logger.error(f"Error getting structured response: {e}")
+            logger.error(f"Raw response content: {message.content if 'message' in locals() else 'No content'}")
+            raise

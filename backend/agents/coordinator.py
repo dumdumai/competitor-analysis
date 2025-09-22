@@ -14,6 +14,7 @@ from database.repositories import AnalysisRepository, ReportRepository
 from .search_agent import SearchAgent
 from .analysis_agent import AnalysisAgent
 from .quality_agent import QualityAgent
+from .llm_quality_agent import LLMQualityAgent
 from .report_agent import ReportAgent
 
 
@@ -44,11 +45,106 @@ class CompetitorAnalysisCoordinator:
         self.search_agent = SearchAgent(tavily_service, redis_service)
         self.analysis_agent = AnalysisAgent(llm_service, tavily_service, redis_service)
         self.quality_agent = QualityAgent(redis_service)
+        self.llm_quality_agent = LLMQualityAgent(llm_service, redis_service)
         self.report_agent = ReportAgent(llm_service, redis_service, report_repository)
+        
+        # Initialize PostgreSQL checkpointer for persistent interrupts
+        import os
+        postgres_uri = os.getenv("POSTGRES_URI", "postgresql://postgres:postgres@postgres:5432/competitor_analysis")
+        logger.info(f"🔧 Initializing PostgreSQL checkpointer with URI: {postgres_uri}")
+        
+        self.postgres_uri = postgres_uri
+        self.checkpointer = None  # Will be created per workflow execution
         
         # Build workflow
         self.workflow = self._build_workflow()
     
+    def _build_workflow_with_checkpointer(self, checkpointer) -> StateGraph:
+        """Build the LangGraph workflow with a specific checkpointer"""
+        workflow = StateGraph(AgentState)
+        
+        # Add nodes for simplified agents
+        workflow.add_node("search", self._search_node)
+        workflow.add_node("analysis", self._analysis_node)
+        # workflow.add_node("quality", self._quality_node)  # Commented out - using LLM quality instead
+        workflow.add_node("llm_quality", self._llm_quality_node)
+        workflow.add_node("human_review", self._human_review_node)
+        workflow.add_node("report", self._report_node)
+        
+        # Set entry point
+        workflow.set_entry_point("search")
+        
+        # Add conditional edges with retry logic (same as _build_workflow)
+        def route_after_search(state: AgentState) -> str:
+            if state.status == "failed":
+                return "END"
+            return "analysis"
+        
+        def route_after_analysis(state: AgentState) -> str:
+            if state.status == "failed":
+                return "END"
+            return "llm_quality"
+        
+        def route_after_quality(state: AgentState) -> str:
+            if state.status == "failed":
+                logger.info(f"🔄 Quality routing: Analysis failed, ending workflow")
+                return "END"
+            
+            critical_issues = state.get_critical_quality_issues()
+            logger.info(f"🔄 Quality routing: Found {len(state.retry_context.quality_feedback)} total issues, {len(critical_issues)} critical/high severity")
+            
+            if state.has_critical_issues_needing_review():
+                logger.info(f"🔄 Quality routing: Routing to human_review due to critical issues")
+                return "human_review"
+            
+            logger.info(f"🔄 Quality routing: No critical issues, proceeding to report")
+            return "report"
+        
+        def route_after_human_review(state: AgentState) -> str:
+            if state.status == "failed":
+                return "END"
+            
+            decision = state.get_human_decision()
+            if not decision:
+                return "human_review"
+            
+            if decision.decision == "abort":
+                return "END"
+            elif decision.decision == "retry_search":
+                # Use selected issues to guide search retry
+                self._apply_selected_quality_feedback(state, decision, "search")
+                return "retry_search"
+            elif decision.decision == "retry_analysis":
+                # Use selected issues to guide analysis retry
+                self._apply_selected_quality_feedback(state, decision, "analysis")
+                return "retry_analysis"
+            elif decision.decision in ["proceed", "modify_params"]:
+                return "report"
+            else:
+                return "report"
+        
+        # Add edges
+        workflow.add_conditional_edges("search", route_after_search, {"analysis": "analysis", "END": END})
+        workflow.add_conditional_edges("analysis", route_after_analysis, {"llm_quality": "llm_quality", "END": END})
+        workflow.add_conditional_edges("llm_quality", route_after_quality, {"human_review": "human_review", "report": "report", "END": END})
+        workflow.add_conditional_edges("human_review", route_after_human_review, {"report": "report", "retry_search": "search", "retry_analysis": "analysis", "END": END})
+        workflow.add_edge("report", END)
+        
+        # Compile with the provided checkpointer
+        logger.info("🔧 Compiling workflow with PostgreSQL checkpointer and interrupts...")
+        try:
+            compiled_workflow = workflow.compile(
+                checkpointer=checkpointer,
+                interrupt_before=["human_review"]
+            )
+            logger.info("✅ Workflow with PostgreSQL checkpointer compilation successful")
+            return compiled_workflow
+        except Exception as e:
+            logger.error(f"❌ Workflow compilation failed: {e}")
+            import traceback
+            logger.error(f"Compilation traceback: {traceback.format_exc()}")
+            raise
+
     def _build_workflow(self) -> StateGraph:
         """Build the LangGraph workflow for competitor analysis"""
         workflow = StateGraph(AgentState)
@@ -56,7 +152,8 @@ class CompetitorAnalysisCoordinator:
         # Add nodes for simplified agents
         workflow.add_node("search", self._search_node)
         workflow.add_node("analysis", self._analysis_node)
-        workflow.add_node("quality", self._quality_node)
+        # workflow.add_node("quality", self._quality_node)  # Commented out - using LLM quality instead
+        workflow.add_node("llm_quality", self._llm_quality_node)
         workflow.add_node("human_review", self._human_review_node)
         workflow.add_node("report", self._report_node)
         
@@ -74,7 +171,7 @@ class CompetitorAnalysisCoordinator:
             """Route after analysis: continue to quality or fail"""
             if state.status == "failed":
                 return "END"
-            return "quality"
+            return "llm_quality"
         
         def route_after_quality(state: AgentState) -> str:
             """Route after quality: human review if issues found, otherwise continue to report"""
@@ -129,13 +226,13 @@ class CompetitorAnalysisCoordinator:
             "analysis",
             route_after_analysis,
             {
-                "quality": "quality",
+                "llm_quality": "llm_quality",
                 "END": END
             }
         )
         
         workflow.add_conditional_edges(
-            "quality",
+            "llm_quality",
             route_after_quality,
             {
                 "human_review": "human_review",
@@ -158,7 +255,19 @@ class CompetitorAnalysisCoordinator:
         
         workflow.add_edge("report", END)
         
-        return workflow.compile()
+        # For now, compile without checkpointer - will set it up during execution
+        logger.info("🔧 Compiling workflow with interrupts (checkpointer will be set during execution)...")
+        try:
+            compiled_workflow = workflow.compile(
+                interrupt_before=["human_review"]  # Static interrupt before human review
+            )
+            logger.info("✅ Workflow compilation successful")
+            return compiled_workflow
+        except Exception as e:
+            logger.error(f"❌ Workflow compilation failed: {e}")
+            import traceback
+            logger.error(f"Compilation traceback: {traceback.format_exc()}")
+            raise
     
     async def analyze_competitors(self, request: AnalysisRequest) -> str:
         """Main entry point for competitor analysis"""
@@ -324,89 +433,161 @@ class CompetitorAnalysisCoordinator:
             raise
     
     async def _execute_workflow(self, initial_state: AgentState) -> AgentState:
-        """Execute the LangGraph workflow"""
-        try:
-            # Run the workflow
-            final_state = await self.workflow.ainvoke(initial_state)
-            return final_state
+        """Execute the LangGraph workflow with interrupt handling"""
+        # Create PostgreSQL checkpointer for this execution
+        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+        
+        async with AsyncPostgresSaver.from_conn_string(self.postgres_uri) as checkpointer:
+            await checkpointer.setup()
+            logger.info("✅ AsyncPostgresSaver setup completed")
             
-        except HumanReviewRequiredException as e:
-            logger.info(f"🛑 Workflow interrupted for human review: {e.request_id}")
+            # Rebuild the workflow with the PostgreSQL checkpointer
+            workflow_with_postgres = self._build_workflow_with_checkpointer(checkpointer)
             
-            # Get the current state from cache
-            agent_state = await self.get_agent_state(e.request_id)
-            if not agent_state:
-                logger.error(f"Could not retrieve agent state for {e.request_id}")
-                initial_state.add_error("Failed to retrieve state for human review")
+            try:
+                # Create thread config for the workflow execution
+                config = {"configurable": {"thread_id": initial_state.request_id}}
+                logger.info(f"🚀 Starting workflow execution for {initial_state.request_id}")
+                logger.info(f"📋 Initial state status: {initial_state.status}")
+                logger.info(f"🔧 Workflow config: {config}")
+                
+                # Run the workflow - it will automatically interrupt before human_review
+                logger.info("⚡ Invoking workflow with ainvoke...")
+                result = await workflow_with_postgres.ainvoke(initial_state, config=config)
+                logger.info(f"✅ Workflow ainvoke completed, result type: {type(result)}")
+                
+                # Check if workflow was interrupted
+                state_snapshot = await workflow_with_postgres.aget_state(config)
+                if state_snapshot.next:  # If there are next nodes, it means we're interrupted
+                    logger.info(f"🛑 Workflow interrupted before: {state_snapshot.next}")
+                    
+                    # Convert dict result back to AgentState if needed
+                    if isinstance(result, dict):
+                        from models.agent_state import AgentState
+                        current_state = AgentState(**result)
+                    else:
+                        current_state = result
+                        
+                    current_state.set_awaiting_human_review(True)
+                    current_state.current_stage = "human_review"
+                    current_state.status = "in_progress"
+                    
+                    # Update analysis status
+                    await self.analysis_repository.update_analysis(
+                        initial_state.request_id, {
+                            "status": "in_progress",
+                            "current_stage": "human_review",
+                            "progress": current_state.progress
+                        }
+                    )
+                    
+                    # Store quality review data for frontend
+                    await self._store_human_review_data(current_state)
+                    
+                    return current_state
+                
+                # Convert dict result back to AgentState if needed for normal completion
+                if isinstance(result, dict):
+                    from models.agent_state import AgentState
+                    return AgentState(**result)
+                return result
+                
+            except Exception as e:
+                import traceback
+                error_details = traceback.format_exc()
+                logger.error(f"Error executing workflow: {e}")
+                logger.error(f"Full traceback: {error_details}")
+                initial_state.add_error(f"Workflow execution failed: {str(e)}")
                 initial_state.status = "failed"
                 return initial_state
-            
-            # Update analysis status to indicate waiting for human review
-            # Use 'in_progress' status since 'awaiting_human_review' is not in the schema
-            update_data = {
-                "status": "in_progress",
-                "current_stage": "human_review", 
-                "progress": agent_state.progress
-            }
-            logger.info(f"🔧 Updating database with: {update_data}")
-            await self.analysis_repository.update_analysis(e.request_id, update_data)
-            
-            # Verify the update worked
-            updated_analysis = await self.analysis_repository.get_analysis(e.request_id)
-            if updated_analysis:
-                logger.info(f"🔧 Verified database update: status={updated_analysis.status}, current_stage={getattr(updated_analysis, 'current_stage', 'MISSING')}")
-            else:
-                logger.error(f"🔧 Failed to retrieve updated analysis from database")
-            
-            # Ensure the human review flag is properly set in the returned state
-            agent_state.set_awaiting_human_review(True)
-            agent_state.current_stage = "human_review"
-            agent_state.status = "in_progress"
-            logger.info(f"🔧 Set awaiting_human_review=True for state {e.request_id}")
-            
-            return agent_state
-            
-        except Exception as e:
-            logger.error(f"Error executing workflow: {e}")
-            initial_state.add_error(f"Workflow execution failed: {str(e)}")
-            initial_state.status = "failed"
-            return initial_state
     
     async def resume_workflow(self, request_id: str) -> AgentState:
-        """Resume workflow after human review decision"""
+        """Resume workflow after human review decision using LangGraph checkpoints"""
         try:
-            # Get current state
-            agent_state = await self.get_agent_state(request_id)
-            if not agent_state:
-                raise ValueError(f"No agent state found for {request_id}")
+            logger.info(f"🔄 Starting workflow resume for {request_id}")
             
-            # Verify that workflow is waiting for human review
-            if not agent_state.is_awaiting_human_review():
-                raise ValueError(f"Analysis {request_id} is not waiting for human review")
-            
-            # Get human decision
-            decision = agent_state.get_human_decision()
-            if not decision:
-                raise ValueError(f"No human decision found for {request_id}")
-            
-            logger.info(f"🔄 Resuming workflow for {request_id} with decision: {decision.decision}")
-            
-            # Update analysis status
-            await self.analysis_repository.update_analysis(
-                request_id, {
-                    "status": "in_progress",
-                    "current_stage": "resuming",
-                    "progress": agent_state.progress
-                }
-            )
-            
-            # Continue workflow execution from human_review node
-            final_state = await self.workflow.ainvoke(agent_state)
-            
-            # Handle final workflow completion
-            await self._save_final_results(final_state)
-            
-            return final_state
+            # Create checkpointer connection (same pattern as execution)
+            from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+            async with AsyncPostgresSaver.from_conn_string(self.postgres_uri) as checkpointer:
+                logger.info(f"🔧 Created PostgreSQL checkpointer for resume")
+                
+                # Create workflow instance with checkpointer (same as execution)
+                workflow = self._build_workflow_with_checkpointer(checkpointer)
+                
+                # Create thread config
+                config = {"configurable": {"thread_id": request_id}}
+                
+                # Get current state snapshot to verify interrupt exists
+                state_snapshot = await workflow.aget_state(config)
+                if not state_snapshot.next:
+                    raise ValueError(f"No interrupted workflow found for {request_id}")
+                
+                logger.info(f"🔍 Found interrupted workflow at: {state_snapshot.next}")
+                
+                # Get the agent state from checkpoint
+                current_state = state_snapshot.values
+                
+                # Convert dict to AgentState if needed
+                if isinstance(current_state, dict):
+                    from models.agent_state import AgentState
+                    current_state = AgentState(**current_state)
+                
+                # Check if human decision is in checkpoint state, if not get from database
+                if not current_state.get_human_decision():
+                    logger.info(f"🔍 Human decision not in checkpoint, loading from database...")
+                    # Get human decision from database
+                    analysis = await self.analysis_repository.get_analysis(request_id)
+                    if analysis and hasattr(analysis, 'quality_review') and analysis.quality_review:
+                        # Handle both dict and Pydantic model formats
+                        if hasattr(analysis.quality_review, 'review_decision'):
+                            review_decision = analysis.quality_review.review_decision
+                        elif isinstance(analysis.quality_review, dict):
+                            review_decision = analysis.quality_review.get('review_decision')
+                        else:
+                            review_decision = None
+                            
+                        if review_decision:
+                            from models.agent_state import HumanReviewDecision
+                            # Handle both dict and Pydantic model formats
+                            if isinstance(review_decision, dict):
+                                decision = HumanReviewDecision(**review_decision)
+                            else:
+                                decision = review_decision
+                            current_state.set_human_decision(decision)
+                            logger.info(f"✅ Loaded human decision from database: {decision.decision}")
+                        else:
+                            raise ValueError(f"No human decision found in database for {request_id}")
+                    else:
+                        raise ValueError(f"No human decision found for {request_id}")
+                
+                # Update the checkpoint with the human decision before resuming
+                await workflow.aupdate_state(config, current_state.dict())
+                logger.info(f"✅ Updated checkpoint state with human decision")
+                
+                logger.info(f"🔄 Resuming workflow for {request_id} with decision: {current_state.get_human_decision().decision}")
+                
+                # Update analysis status
+                await self.analysis_repository.update_analysis(
+                    request_id, {
+                        "status": "in_progress", 
+                        "current_stage": "resuming",
+                        "progress": current_state.progress
+                    }
+                )
+                
+                # Resume workflow from the checkpoint - this will continue from where it was interrupted
+                final_state = await workflow.ainvoke(None, config=config)
+                
+                # Convert dict result back to AgentState if needed
+                if isinstance(final_state, dict):
+                    from models.agent_state import AgentState
+                    final_state = AgentState(**final_state)
+                
+                # Handle final workflow completion
+                await self._save_final_results(final_state)
+                
+                logger.info(f"✅ Workflow resumed and completed for {request_id}")
+                return final_state
             
         except Exception as e:
             logger.error(f"Error resuming workflow for {request_id}: {e}")
@@ -570,7 +751,7 @@ class CompetitorAnalysisCoordinator:
                         "status": "completed",
                         "current_stage": "completed",
                         "progress": 100,
-                        "completed_stages": ["search", "analysis", "quality", "human_review", "report"],
+                        "completed_stages": ["search", "analysis", "llm_quality", "human_review", "report"],
                         "competitors": competitors_data,
                         "market_analysis": market_analysis,
                         "competitive_positioning": competitive_positioning,
@@ -607,8 +788,17 @@ class CompetitorAnalysisCoordinator:
                     }
                 )
                 
-                # Continue workflow execution from human_review node
-                final_state = await self.workflow.ainvoke(agent_state)
+                # Continue workflow execution using checkpointer (same pattern as other methods)
+                from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+                async with AsyncPostgresSaver.from_conn_string(self.postgres_uri) as checkpointer:
+                    workflow = self._build_workflow_with_checkpointer(checkpointer)
+                    config = {"configurable": {"thread_id": request_id}}
+                    
+                    # Apply the human decision and selected quality feedback before resuming
+                    self._apply_selected_quality_feedback(agent_state, decision, "search" if decision.decision == "retry_search" else "analysis")
+                    
+                    # Resume workflow from interrupt
+                    final_state = await workflow.ainvoke(None, config=config)
                 
                 # Handle final workflow completion
                 await self._save_final_results(final_state)
@@ -687,7 +877,7 @@ class CompetitorAnalysisCoordinator:
             return state
     
     async def _quality_node(self, state: AgentState) -> AgentState:
-        """Unified quality node (data processing + quality assurance)"""
+        """Unified quality node (data processing + quality assurance) - COMMENTED OUT"""
         try:
             logger.info("🔍 Executing unified quality agent")
             await self._update_progress(state, "quality", 70, "Validating data quality and completeness...")
@@ -708,10 +898,32 @@ class CompetitorAnalysisCoordinator:
             state.status = "failed"
             return state
     
-    async def _human_review_node(self, state: AgentState) -> AgentState:
-        """Human review node - interrupts workflow for user review of quality issues"""
+    async def _llm_quality_node(self, state: AgentState) -> AgentState:
+        """LLM-powered quality node (intelligent data quality assessment)"""
         try:
-            logger.info("👤 Human review required for quality issues")
+            logger.info("🧠 Executing LLM quality agent")
+            await self._update_progress(state, "llm_quality", 70, "Analyzing data quality with AI...")
+            
+            updated_state = await self.llm_quality_agent.process(state)
+            await self._save_intermediate_state(updated_state)
+            
+            # Check if the agent failed the state
+            if updated_state.status == "failed":
+                logger.error("LLM Quality agent failed - stopping workflow")
+                return updated_state
+            
+            return updated_state
+            
+        except Exception as e:
+            logger.error(f"Error in LLM quality node: {e}")
+            state.add_error(f"LLM quality assessment failed: {str(e)}")
+            state.status = "failed"
+            return state
+    
+    async def _human_review_node(self, state: AgentState) -> AgentState:
+        """Human review node - will be interrupted before execution by LangGraph"""
+        try:
+            logger.info("👤 Human review node - preparing review data")
             
             # Set state to awaiting human review
             state.set_awaiting_human_review(True)
@@ -719,73 +931,18 @@ class CompetitorAnalysisCoordinator:
             
             await self._update_progress(state, "human_review", state.progress, "Awaiting human decision on quality issues...")
             
-            # Save the state with current_stage before raising exception
+            # Save the state
             await self._save_intermediate_state(state)
             
-            # Also update the analysis record directly for frontend access
-            await self.analysis_repository.update_analysis(
-                state.request_id, {
-                    "status": "in_progress",
-                    "current_stage": "human_review",
-                    "progress": state.progress
-                }
-            )
+            # Store quality review data for frontend
+            await self._store_human_review_data(state)
             
-            # Store quality review data in Redis for the frontend
-            review_data = {
-                "request_id": state.request_id,
-                "quality_issues": [issue.dict() for issue in state.retry_context.quality_feedback],
-                "current_analysis": {
-                    "competitors_found": len(state.discovered_competitors),
-                    "quality_scores": state.quality_scores,
-                    "average_quality": sum(state.quality_scores.values()) / len(state.quality_scores) if state.quality_scores else 0,
-                    "analysis_completed": state.current_stage in ["quality", "human_review"]
-                },
-                "available_actions": [
-                    {"id": "proceed", "label": "Proceed with current results", "description": "Continue to report generation"},
-                    {"id": "retry_search", "label": "Retry search", "description": "Re-run competitor discovery and data collection"},
-                    {"id": "retry_analysis", "label": "Retry analysis", "description": "Re-run market and competitive analysis"},
-                    {"id": "modify_params", "label": "Modify parameters", "description": "Adjust analysis parameters and retry"},
-                    {"id": "abort", "label": "Abort analysis", "description": "Stop the analysis workflow"}
-                ]
-            }
+            logger.info(f"✅ Human review data prepared for {state.request_id}")
             
-            try:
-                # Store in Redis for quick access
-                await self.redis_service.store_human_review_data(state.request_id, review_data)
-                logger.info(f"✅ Human review data stored in Redis for {state.request_id}")
-                
-                # Also persist to database for permanent storage
-                from ..models.analysis import QualityReview, QualityIssue
-                
-                quality_review = QualityReview(
-                    quality_issues=[QualityIssue(**issue.dict()) for issue in state.retry_context.quality_feedback],
-                    quality_scores=state.quality_scores,
-                    average_quality_score=sum(state.quality_scores.values()) / len(state.quality_scores) if state.quality_scores else 0,
-                    review_required=True,
-                    created_at=datetime.utcnow()
-                )
-                
-                await self.analysis_repository.update_analysis(
-                    state.request_id, {
-                        "quality_review": quality_review.dict()
-                    }
-                )
-                logger.info(f"✅ Quality review data persisted to database for {state.request_id}")
-                
-            except Exception as e:
-                logger.error(f"Failed to store human review data: {e}")
-                # Continue anyway - the API can still fetch data from state
+            # This node will not actually execute due to the interrupt_before configuration
+            # The workflow will pause before reaching this node
+            return state
             
-            logger.info(f"💤 Workflow paused for human review. Found {len(state.retry_context.quality_feedback)} quality issues")
-            
-            # Raise a special exception to indicate human review is needed
-            # This will be caught by the workflow executor
-            raise HumanReviewRequiredException(state.request_id)
-            
-        except HumanReviewRequiredException:
-            # Re-raise the human review exception so it can be caught by the workflow executor
-            raise
         except Exception as e:
             logger.error(f"Error in human review node: {e}")
             state.add_error(f"Human review setup failed: {str(e)}")
@@ -852,6 +1009,123 @@ class CompetitorAnalysisCoordinator:
         except Exception as e:
             logger.warning(f"Failed to save intermediate state: {e}")
     
+    async def _store_human_review_data(self, state: AgentState):
+        """Store human review data for frontend access"""
+        try:
+            review_data = {
+                "request_id": state.request_id,
+                "quality_issues": [issue.dict() for issue in state.retry_context.quality_feedback] if state.retry_context and state.retry_context.quality_feedback else [],
+                "current_analysis": {
+                    "competitors_found": len(state.discovered_competitors) if state.discovered_competitors else 0,
+                    "quality_scores": state.quality_scores or {},
+                    "average_quality": sum(state.quality_scores.values()) / len(state.quality_scores) if state.quality_scores else 0,
+                    "analysis_completed": state.current_stage in ["llm_quality", "human_review"]
+                },
+                "available_actions": [
+                    {"id": "proceed", "label": "Proceed with current results", "description": "Continue to report generation"},
+                    {"id": "retry_search", "label": "Retry search", "description": "Re-run competitor discovery and data collection"},
+                    {"id": "retry_analysis", "label": "Retry analysis", "description": "Re-run market and competitive analysis"},
+                    {"id": "modify_params", "label": "Modify parameters", "description": "Adjust analysis parameters and retry"},
+                    {"id": "abort", "label": "Abort analysis", "description": "Stop the analysis workflow"}
+                ]
+            }
+            
+            # Store in Redis for quick access
+            await self.redis_service.store_human_review_data(state.request_id, review_data)
+            logger.info(f"✅ Human review data stored in Redis for {state.request_id}")
+            
+            # Also persist to database for permanent storage
+            if state.retry_context and state.retry_context.quality_feedback:
+                from models.analysis import QualityReview, QualityIssue
+                
+                quality_review = QualityReview(
+                    quality_issues=[QualityIssue(**issue.dict()) for issue in state.retry_context.quality_feedback],
+                    quality_scores=state.quality_scores or {},
+                    average_quality_score=sum(state.quality_scores.values()) / len(state.quality_scores) if state.quality_scores else 0,
+                    review_required=True,
+                    created_at=datetime.utcnow()
+                )
+                
+                await self.analysis_repository.update_analysis(
+                    state.request_id, {
+                        "quality_review": quality_review.dict()
+                    }
+                )
+                logger.info(f"✅ Quality review data persisted to database for {state.request_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to store human review data: {e}")
+    
+    async def submit_human_decision(self, request_id: str, decision: str, feedback: str = None) -> bool:
+        """Submit human decision for interrupted workflow"""
+        try:
+            # First try the interrupt mechanism (for new workflows)
+            config = {"configurable": {"thread_id": request_id}}
+            
+            try:
+                # Check if there's an interrupted workflow
+                state_snapshot = self.workflow.get_state(config)
+                if state_snapshot.next:
+                    logger.info(f"Found interrupted workflow for {request_id}")
+                    
+                    # Get the current state
+                    current_state = state_snapshot.values
+                    
+                    # Convert dict to AgentState if needed
+                    if isinstance(current_state, dict):
+                        from models.agent_state import AgentState
+                        current_state = AgentState(**current_state)
+                    
+                    from models.agent_state import HumanReviewDecision
+                    human_decision = HumanReviewDecision(
+                        decision=decision,
+                        feedback=feedback or ""
+                    )
+                    
+                    current_state.set_human_decision(human_decision)
+                    current_state.apply_human_decision()
+                    
+                    # Update the state in the workflow checkpointer
+                    self.workflow.update_state(config, current_state)
+                    
+                    logger.info(f"✅ Human decision '{decision}' submitted via interrupt mechanism for {request_id}")
+                    return True
+                    
+            except Exception as e:
+                logger.info(f"No interrupted workflow found, falling back to state management: {e}")
+            
+            # Fallback to existing state management approach
+            agent_state = await self.get_agent_state(request_id)
+            if not agent_state:
+                raise ValueError(f"No agent state found for {request_id}")
+            
+            # Check if the workflow is actually awaiting human review
+            if not agent_state.is_awaiting_human_review():
+                # Check database as fallback
+                analysis = await self.analysis_repository.get_analysis(request_id)
+                if not analysis or getattr(analysis, 'current_stage', None) != 'human_review':
+                    raise ValueError(f"Analysis {request_id} is not awaiting human review")
+                # Update state to be consistent
+                agent_state.set_awaiting_human_review(True)
+            
+            from models.agent_state import HumanReviewDecision
+            human_decision = HumanReviewDecision(
+                decision=decision,
+                feedback=feedback or ""
+            )
+            
+            agent_state.set_human_decision(human_decision)
+            
+            # Save the updated state
+            await self._save_intermediate_state(agent_state)
+            
+            logger.info(f"✅ Human decision '{decision}' submitted via state management for {request_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error submitting human decision for {request_id}: {e}")
+            return False
+    
     async def get_analysis_status(self, request_id: str) -> Optional[Dict[str, Any]]:
         """Get current analysis status"""
         try:
@@ -882,7 +1156,7 @@ class CompetitorAnalysisCoordinator:
                     if analysis.progress >= 40:
                         completed_stages.append("analysis")
                     if analysis.progress >= 60:
-                        completed_stages.append("quality")
+                        completed_stages.append("llm_quality")
                     if analysis.progress >= 80:
                         completed_stages.append("human_review")
                     if analysis.progress >= 100:
@@ -893,7 +1167,7 @@ class CompetitorAnalysisCoordinator:
                 if analysis.status == "completed":
                     current_stage = "completed"
                     # ALWAYS ensure all 5 stages are marked complete for completed analyses
-                    completed_stages = ["search", "analysis", "quality", "human_review", "report"]
+                    completed_stages = ["search", "analysis", "llm_quality", "human_review", "report"]
                 
                 return {
                     "request_id": request_id,
@@ -1022,3 +1296,74 @@ class CompetitorAnalysisCoordinator:
         except Exception as e:
             logger.error(f"Error getting agent state for {request_id}: {e}")
             return None
+    
+    def _apply_selected_quality_feedback(self, state: AgentState, decision: 'HumanReviewDecision', retry_agent: str):
+        """Apply selected quality issues feedback to guide agent retry"""
+        try:
+            logger.info(f"🔍 Applying selected quality feedback for {retry_agent} retry")
+            
+            # Get all quality issues from the state
+            all_issues = state.retry_context.quality_feedback if state.retry_context else []
+            
+            # Filter to only the selected issues
+            selected_issues = []
+            if decision.selected_issues:
+                # Map selected issue descriptions/IDs to actual QualityIssue objects
+                for issue in all_issues:
+                    # Check if this issue was selected (by description or issue_type)
+                    if (issue.description in decision.selected_issues or 
+                        issue.issue_type in decision.selected_issues):
+                        selected_issues.append(issue)
+            else:
+                # If no specific issues selected, use all issues for the target agent
+                selected_issues = [issue for issue in all_issues if issue.retry_agent == retry_agent]
+            
+            logger.info(f"🔍 Found {len(selected_issues)} selected issues for {retry_agent} retry")
+            
+            # Extract specific guidance from selected issues
+            search_suggestions = []
+            analysis_suggestions = []
+            
+            for issue in selected_issues:
+                logger.info(f"🔍 Processing issue: {issue.issue_type} -> {issue.suggested_action}")
+                
+                if retry_agent == "search" and issue.retry_agent == "search":
+                    search_suggestions.append({
+                        "issue_type": issue.issue_type,
+                        "suggestion": issue.suggested_action,
+                        "affected_competitors": issue.affected_competitors
+                    })
+                elif retry_agent == "analysis" and issue.retry_agent == "analysis":
+                    analysis_suggestions.append({
+                        "issue_type": issue.issue_type,
+                        "suggestion": issue.suggested_action,
+                        "affected_competitors": issue.affected_competitors
+                    })
+            
+            # Store suggestions in state for agents to use
+            if retry_agent == "search" and search_suggestions:
+                state.search_guidance = {
+                    "retry_suggestions": search_suggestions,
+                    "human_feedback": decision.feedback,
+                    "selected_issues": [s["issue_type"] for s in search_suggestions]
+                }
+                logger.info(f"🔍 Added search guidance: {len(search_suggestions)} suggestions")
+            
+            elif retry_agent == "analysis" and analysis_suggestions:
+                state.analysis_guidance = {
+                    "retry_suggestions": analysis_suggestions,
+                    "human_feedback": decision.feedback,
+                    "selected_issues": [s["issue_type"] for s in analysis_suggestions]
+                }
+                logger.info(f"🔍 Added analysis guidance: {len(analysis_suggestions)} suggestions")
+            
+            # Record the retry with specific feedback
+            retry_reason = f"Human requested {retry_agent} retry addressing: {', '.join([s['issue_type'] for s in selected_issues])}"
+            state.record_retry(retry_agent, retry_reason)
+            
+            logger.info(f"✅ Applied quality feedback for {retry_agent} retry with {len(selected_issues)} targeted issues")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to apply selected quality feedback: {e}")
+            # Fallback: record generic retry
+            state.record_retry(retry_agent, f"Human requested {retry_agent} retry")
