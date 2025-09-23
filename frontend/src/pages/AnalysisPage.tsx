@@ -84,7 +84,7 @@ const AnalysisPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isRestart, setIsRestart] = useState(false);
-  const [demoMode, setDemoMode] = useState<boolean>(true);
+  const [demoMode, setDemoMode] = useState<boolean>(false); // Default to live data
   const [demoModeLoading, setDemoModeLoading] = useState(false);
 
   // Check for pre-filled data from restart analysis
@@ -125,38 +125,16 @@ const AnalysisPage: React.FC = () => {
     }
   }, [location.state]);
 
-  // Load demo mode status on component mount
-  useEffect(() => {
-    const loadDemoModeStatus = async () => {
-      try {
-        const response = await analysisAPI.getDemoModeStatus();
-        setDemoMode(response.data.demo_mode);
-      } catch (err) {
-        console.error('Failed to load demo mode status:', err);
-        // Default to demo mode if we can't load status
-        setDemoMode(true);
-      }
-    };
-    
-    loadDemoModeStatus();
-  }, []);
+  // Demo mode is now controlled locally and passed with each request
+  // No need to load from backend since it's per-request
 
-  const toggleDemoMode = async () => {
-    try {
-      setDemoModeLoading(true);
-      const response = await analysisAPI.toggleDemoMode();
-      setDemoMode(response.data.current_demo_mode);
-      
-      // Show success message
-      setSuccess(`Demo mode ${response.data.current_demo_mode ? 'enabled' : 'disabled'} - using ${response.data.current_demo_mode ? 'mock' : 'real'} data`);
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err: any) {
-      console.error('Failed to toggle demo mode:', err);
-      setError('Failed to toggle demo mode. Please try again.');
-      setTimeout(() => setError(null), 3000);
-    } finally {
-      setDemoModeLoading(false);
-    }
+  const toggleDemoMode = () => {
+    // Toggle local state - demo mode is now per-request
+    setDemoMode(!demoMode);
+    
+    // Show success message
+    setSuccess(`Demo mode ${!demoMode ? 'enabled' : 'disabled'} - will use ${!demoMode ? 'mock' : 'real'} data for this analysis`);
+    setTimeout(() => setSuccess(null), 3000);
   };
 
   const handleInputChange = (
@@ -212,8 +190,11 @@ const AnalysisPage: React.FC = () => {
       // Save form data to suggestions before submitting
       suggestionService.saveFormData(form);
 
-      // Start analysis
-      const response = await analysisAPI.startAnalysis(form);
+      // Start analysis with demo_mode flag
+      const response = await analysisAPI.startAnalysis({
+        ...form,
+        demo_mode: demoMode
+      });
       
       // Check if we have a proper request_id from the response
       if (response.data && response.data.request_id) {
@@ -261,7 +242,7 @@ const AnalysisPage: React.FC = () => {
       // Save product form data to suggestions before submitting
       suggestionService.saveFormData(productForm);
 
-      // Convert to ProductComparisonRequest format
+      // Convert to ProductComparisonRequest format with demo_mode
       const productRequest: ProductComparisonRequest = {
         client_product: productForm.client_product,
         client_company: productForm.client_company,
@@ -270,7 +251,8 @@ const AnalysisPage: React.FC = () => {
         specific_requirements: productForm.specific_requirements,
         max_products: productForm.max_products,
         include_indirect_competitors: productForm.include_indirect_competitors,
-        comparison_criteria: productForm.comparison_criteria
+        comparison_criteria: productForm.comparison_criteria,
+        demo_mode: demoMode
       };
 
       // Start product comparison

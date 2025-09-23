@@ -66,6 +66,7 @@ class AnalysisContext(BaseModel):
     excluded_domains: List[str] = Field(default_factory=list)
     data_sources: List[str] = Field(default_factory=list)
     quality_requirements: Dict[str, Any] = Field(default_factory=dict)
+    demo_mode: bool = Field(default=False, description="Whether to use demo mode for searches")
 
 
 class AgentState(BaseModel):

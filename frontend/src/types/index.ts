@@ -39,6 +39,7 @@ export interface AnalysisRequest {
   business_model: string;
   specific_requirements?: string;
   max_competitors: number;
+  demo_mode?: boolean;
   
   // Product comparison fields
   comparison_type?: 'company' | 'product';
@@ -128,6 +129,7 @@ export interface ProductComparisonRequest {
   specific_requirements?: string;
   max_products?: number;
   include_indirect_competitors?: boolean;
+  demo_mode?: boolean;
 }
 
 export interface ProductComparison {

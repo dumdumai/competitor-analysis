@@ -49,6 +49,7 @@ class AnalysisRequest(BaseModel):
         default_factory=list,
         description="Specific criteria for comparison (features, pricing, performance, etc.)"
     )
+    demo_mode: bool = Field(default=False, description="Whether to use demo mode for searches")
     
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
@@ -64,6 +65,7 @@ class CompetitorData(BaseModel):
     description: str = Field(..., description="Company description")
     business_model: str = Field(..., description="Business model")
     target_market: str = Field(..., description="Target market")
+    industry: Optional[str] = Field(None, description="Industry sector")
     founding_year: Optional[int] = Field(None, description="Year founded")
     headquarters: Optional[str] = Field(None, description="Headquarters location")
     employee_count: Optional[str] = Field(None, description="Number of employees")

@@ -15,6 +15,9 @@ from database.repositories import AnalysisRepository
 
 router = APIRouter()
 
+# Runtime demo mode state (overrides environment variable)
+_runtime_demo_mode = None
+
 
 def get_coordinator(request: Request) -> CompetitorAnalysisCoordinator:
     """Dependency to get coordinator from app state"""
@@ -241,10 +244,13 @@ async def get_analysis_result(
                         analysis.recommendations = agent_state.recommendations
                     
                     if agent_state.competitive_analysis:
-                        # Map competitive analysis data
+                        # Map competitive analysis data to competitive_landscape
                         comp_analysis = agent_state.competitive_analysis
                         if comp_analysis.get('positioning'):
-                            analysis.competitive_positioning = comp_analysis['positioning']
+                            # Store positioning data in competitive_landscape instead
+                            if not analysis.competitive_landscape:
+                                analysis.competitive_landscape = {}
+                            analysis.competitive_landscape['positioning'] = comp_analysis['positioning']
                         
                         # Map threats and opportunities if available
                         if hasattr(agent_state, 'market_insights') and agent_state.market_insights:
@@ -260,6 +266,60 @@ async def get_analysis_result(
             except Exception as e:
                 logger.warning(f"Could not enrich analysis data from agent state: {e}")
                 # Continue with original analysis even if enrichment fails
+                # Reset any partial changes that might have caused issues
+                if hasattr(analysis, 'competitors'):
+                    # Filter out any malformed competitor data
+                    try:
+                        analysis.competitors = [comp for comp in analysis.competitors if isinstance(comp, dict) and comp.get('name')]
+                    except:
+                        analysis.competitors = []
+        
+        # Transform threats_opportunities to ensure frontend compatibility
+        if hasattr(analysis, 'threats_opportunities') and analysis.threats_opportunities:
+            transformed_opportunities = []
+            transformed_threats = []
+            
+            # Transform opportunities
+            if 'opportunities' in analysis.threats_opportunities:
+                for opp in analysis.threats_opportunities['opportunities']:
+                    if isinstance(opp, str):
+                        transformed_opportunities.append(opp)
+                    elif isinstance(opp, dict):
+                        # Convert object format to string format
+                        if 'opportunity' in opp and 'description' in opp:
+                            transformed_opportunities.append(f"{opp['opportunity']}: {opp['description']}")
+                        elif 'opportunity' in opp:
+                            transformed_opportunities.append(opp['opportunity'])
+                        else:
+                            # Fallback - use the first string value found
+                            for value in opp.values():
+                                if isinstance(value, str):
+                                    transformed_opportunities.append(value)
+                                    break
+            
+            # Transform threats
+            if 'threats' in analysis.threats_opportunities:
+                for threat in analysis.threats_opportunities['threats']:
+                    if isinstance(threat, str):
+                        transformed_threats.append(threat)
+                    elif isinstance(threat, dict):
+                        # Convert object format to string format
+                        if 'threat' in threat and 'description' in threat:
+                            transformed_threats.append(f"{threat['threat']}: {threat['description']}")
+                        elif 'threat' in threat:
+                            transformed_threats.append(threat['threat'])
+                        else:
+                            # Fallback - use the first string value found
+                            for value in threat.values():
+                                if isinstance(value, str):
+                                    transformed_threats.append(value)
+                                    break
+            
+            # Update with transformed data
+            analysis.threats_opportunities = {
+                'opportunities': transformed_opportunities,
+                'threats': transformed_threats
+            }
         
         return analysis
         
@@ -635,6 +695,116 @@ async def get_quality_review(
         raise HTTPException(status_code=500, detail="Failed to get quality review data")
 
 
+@router.post("/analysis/{request_id}/human-decision")
+async def submit_human_decision(
+    request_id: str,
+    decision: HumanReviewDecision,
+    coordinator: CompetitorAnalysisCoordinator = Depends(get_coordinator)
+):
+    """
+    Submit human decision for interrupted workflow (LangGraph interrupts)
+    
+    This endpoint handles human decisions for workflows that have been interrupted
+    using LangGraph's static interrupt functionality.
+    """
+    try:
+        # Submit decision to coordinator
+        success = await coordinator.submit_human_decision(
+            request_id, 
+            decision.decision, 
+            decision.feedback
+        )
+        
+        if not success:
+            raise HTTPException(status_code=400, detail="Failed to submit decision")
+        
+        # Resume workflow if not aborting
+        if decision.decision != "abort":
+            try:
+                await coordinator.resume_workflow(request_id)
+            except Exception as e:
+                logger.error(f"Failed to resume workflow: {e}")
+                # Don't fail the endpoint - decision is still recorded
+        
+        return {
+            "message": "Human decision submitted successfully",
+            "request_id": request_id,
+            "decision": decision.decision,
+            "status": "resumed" if decision.decision != "abort" else "aborted"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error submitting human decision: {e}")
+        raise HTTPException(status_code=500, detail="Failed to submit human decision")
+
+
+@router.get("/analysis/{request_id}/interrupt-status")
+async def get_interrupt_status(
+    request_id: str,
+    coordinator: CompetitorAnalysisCoordinator = Depends(get_coordinator)
+):
+    """
+    Check if a workflow is currently interrupted and waiting for human input
+    
+    Returns information about the interrupt state and available actions.
+    """
+    try:
+        # Create thread config
+        config = {"configurable": {"thread_id": request_id}}
+        
+        # Get state snapshot from workflow
+        try:
+            state_snapshot = await coordinator.workflow.aget_state(config)
+            
+            if state_snapshot.next:
+                # Workflow is interrupted
+                interrupted_before = state_snapshot.next[0] if state_snapshot.next else "unknown"
+                current_state = state_snapshot.values
+                
+                return {
+                    "request_id": request_id,
+                    "is_interrupted": True,
+                    "interrupted_before": interrupted_before,
+                    "awaiting_human_review": current_state.is_awaiting_human_review() if hasattr(current_state, 'is_awaiting_human_review') else False,
+                    "current_stage": getattr(current_state, 'current_stage', 'unknown'),
+                    "progress": getattr(current_state, 'progress', 0),
+                    "status": getattr(current_state, 'status', 'unknown')
+                }
+            else:
+                # Workflow not interrupted
+                return {
+                    "request_id": request_id,
+                    "is_interrupted": False,
+                    "awaiting_human_review": False,
+                    "current_stage": "completed" if state_snapshot.values else "unknown",
+                    "progress": 100,
+                    "status": "completed"
+                }
+                
+        except Exception as e:
+            # No workflow state found - check database
+            analysis_repo = coordinator.analysis_repository
+            analysis = await analysis_repo.get_analysis(request_id)
+            
+            if not analysis:
+                raise HTTPException(status_code=404, detail="Analysis not found")
+            
+            return {
+                "request_id": request_id,
+                "is_interrupted": False,
+                "awaiting_human_review": False,
+                "current_stage": getattr(analysis, 'current_stage', 'unknown'),
+                "progress": analysis.progress,
+                "status": analysis.status
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error checking interrupt status: {e}")
+        raise HTTPException(status_code=500, detail="Failed to check interrupt status")
+
+
 @router.post("/analysis/{request_id}/quality-review/decision")
 async def submit_quality_decision(
     request_id: str,
@@ -706,7 +876,7 @@ async def submit_quality_decision(
         try:
             analysis_repository = request.app.state.analysis_repository
             analysis = await analysis_repository.get_analysis(request_id)
-            if analysis and analysis.quality_review:
+            if analysis:
                 # Update the quality review with the human decision
                 from models.analysis import HumanReviewDecision as DBHumanReviewDecision
                 from datetime import datetime
@@ -719,10 +889,25 @@ async def submit_quality_decision(
                     reviewed_at=datetime.utcnow()
                 )
                 
+                # Update the quality review with the human decision
+                if analysis.quality_review:
+                    updated_quality_review = analysis.quality_review.dict() if hasattr(analysis.quality_review, 'dict') else analysis.quality_review
+                else:
+                    # Create quality review if it doesn't exist
+                    updated_quality_review = {
+                        "quality_issues": [],
+                        "quality_scores": {},
+                        "average_quality_score": 0,
+                        "review_required": True,
+                        "created_at": datetime.utcnow()
+                    }
+                
+                updated_quality_review["review_decision"] = db_decision.dict()
+                updated_quality_review["completed_at"] = datetime.utcnow()
+                
                 await analysis_repository.update_analysis(
                     request_id, {
-                        "quality_review.review_decision": db_decision.dict(),
-                        "quality_review.completed_at": datetime.utcnow()
+                        "quality_review": updated_quality_review
                     }
                 )
                 logger.info(f"✅ Human decision persisted to database for {request_id}")
@@ -816,12 +1001,14 @@ async def get_demo_mode_status():
     Get current demo mode status
     
     Returns whether the system is currently running in demo mode with mock data
+    Note: Demo mode is now controlled per-request, this returns the default state
     """
     try:
-        demo_mode = os.getenv("TAVILY_DEMO_MODE", "False").lower() in ["true", "1", "yes"]
+        # Demo mode is now per-request, so we return false as the default
+        # The actual demo mode is controlled by the demo_mode field in each request
         return {
-            "demo_mode": demo_mode,
-            "description": "Demo mode uses mock data instead of real API calls" if demo_mode else "Using real API data"
+            "demo_mode": False,
+            "description": "Demo mode is controlled per-request. Set demo_mode=true in your analysis request to use mock data."
         }
     except Exception as e:
         logger.error(f"Error getting demo mode status: {e}")

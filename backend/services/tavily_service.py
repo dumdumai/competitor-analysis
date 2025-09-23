@@ -5,32 +5,29 @@ from typing import List, Dict, Any, Optional, Tuple
 from tavily import TavilyClient
 from loguru import logger
 import json
+from dotenv import load_dotenv
+
+# Ensure environment variables are loaded
+load_dotenv(dotenv_path='/app/backend/.env')
 
 
 class TavilyService:
     """Service for handling Tavily API interactions"""
     
     def __init__(self):
-        # Check if demo mode is enabled
-        self.demo_mode = os.getenv("TAVILY_DEMO_MODE", "False").lower() in ["true", "1", "yes"]
+        # Initialize API client (not demo mode - that's per-request)
+        self.api_key = os.getenv("TAVILY_API_KEY")
+        self.client = None
         
-        if self.demo_mode:
-            logger.info("Tavily running in DEMO MODE - using mock data")
-            self.client = None
-        else:
-            self.api_key = os.getenv("TAVILY_API_KEY")
-            if not self.api_key:
-                logger.warning("TAVILY_API_KEY not provided - switching to demo mode")
-                self.demo_mode = True
+        if self.api_key:
+            try:
+                self.client = TavilyClient(api_key=self.api_key)
+                logger.info("Tavily client initialized successfully")
+            except Exception as e:
+                logger.error(f"Failed to initialize Tavily client: {e}")
                 self.client = None
-            else:
-                try:
-                    self.client = TavilyClient(api_key=self.api_key)
-                    logger.info("Tavily client initialized successfully")
-                except Exception as e:
-                    logger.error(f"Failed to initialize Tavily client: {e} - switching to demo mode")
-                    self.demo_mode = True
-                    self.client = None
+        else:
+            logger.warning("TAVILY_API_KEY not provided - will use demo mode when requested")
         
         self.max_results = int(os.getenv("TAVILY_MAX_RESULTS", "10"))
         self.search_depth = os.getenv("TAVILY_SEARCH_DEPTH", "advanced")
@@ -49,12 +46,14 @@ class TavilyService:
                                target_market: str = "",
                                business_model: str = "",
                                specific_requirements: str = "",
-                               additional_keywords: List[str] = None) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+                               additional_keywords: List[str] = None,
+                               demo_mode: bool = False,
+                               max_competitors: int = 10) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """Search for competitors using various search strategies"""
         
-        # Use demo mode if enabled or client unavailable
-        if self.demo_mode or not self.client:
-            logger.info(f"Using demo mode for competitor search (demo_mode={self.demo_mode})")
+        # Use demo mode if requested or client unavailable
+        if demo_mode or not self.client:
+            logger.info(f"Using demo mode for competitor search (demo_mode={demo_mode}, client_available={self.client is not None})")
             results = await self._get_demo_competitor_data(company_name, industry, target_market)
             # Create demo search log
             search_log = {
@@ -76,6 +75,10 @@ class TavilyService:
             search_queries = self._generate_competitor_search_queries(
                 company_name, industry, target_market, business_model, specific_requirements, additional_keywords
             )
+            
+            # LIMIT QUERIES TO AVOID RESOURCE WASTE
+            # Only use first 2 queries for efficiency (should give us enough results)
+            search_queries = search_queries[:2]
             
             all_results = []
             search_logs = []
@@ -162,12 +165,12 @@ class TavilyService:
             }
             return [], [error_log]
     
-    async def search_company_details(self, company_name: str) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    async def search_company_details(self, company_name: str, demo_mode: bool = False) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """Search for detailed information about a specific company"""
         
-        # Use demo mode if enabled
-        if self.demo_mode or not self.client:
-            logger.info(f"Using demo mode for company details (demo_mode={self.demo_mode})")
+        # Use demo mode if requested or client unavailable
+        if demo_mode or not self.client:
+            logger.info(f"Using demo mode for company details (demo_mode={demo_mode}, client_available={self.client is not None})")
             results = await self._get_demo_company_details(company_name)
             search_log = {
                 "search_type": "company_details",
@@ -266,12 +269,13 @@ class TavilyService:
     async def search_market_analysis(self, 
                                    industry: str, 
                                    target_market: str = "",
-                                   year: str = "2024") -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+                                   year: str = "2024",
+                                   demo_mode: bool = False) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """Search for market analysis and industry reports"""
         
-        # Use demo mode if enabled or client unavailable
-        if self.demo_mode or not self.client:
-            logger.info(f"Using demo mode for market analysis (demo_mode={self.demo_mode})")
+        # Use demo mode if requested or client unavailable
+        if demo_mode or not self.client:
+            logger.info(f"Using demo mode for market analysis (demo_mode={demo_mode}, client_available={self.client is not None})")
             results = await self._get_demo_market_data(industry, target_market, year)
             search_log = {
                 "search_type": "market_analysis",
@@ -394,12 +398,13 @@ class TavilyService:
                              product_name: str,
                              category: str,
                              target_market: str = "",
-                             comparison_criteria: List[str] = None) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+                             comparison_criteria: List[str] = None,
+                             demo_mode: bool = False) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """Search for competing products"""
         
-        # Use demo mode if enabled or client unavailable
-        if self.demo_mode or not self.client:
-            logger.info(f"Using demo mode for product search")
+        # Use demo mode if requested or client unavailable
+        if demo_mode or not self.client:
+            logger.info(f"Using demo mode for product search (demo_mode={demo_mode}, client_available={self.client is not None})")
             results = await self._get_demo_product_data(product_name, category)
             # Create demo search log
             search_log = {
@@ -475,11 +480,12 @@ class TavilyService:
                                     product_name: str,
                                     include_features: bool = True,
                                     include_pricing: bool = True,
-                                    include_reviews: bool = True) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+                                    include_reviews: bool = True,
+                                    demo_mode: bool = False) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """Search for detailed product information"""
         
-        if self.demo_mode or not self.client:
-            logger.info(f"Using demo mode for product details")
+        if demo_mode or not self.client:
+            logger.info(f"Using demo mode for product details (demo_mode={demo_mode}, client_available={self.client is not None})")
             results = await self._get_demo_product_details(product_name)
             search_log = {
                 "search_type": "product_details",
@@ -650,16 +656,12 @@ class TavilyService:
         return key_terms[:3]  # Limit to top 3 most relevant terms
     
     def _generate_company_detail_queries(self, company_name: str) -> List[str]:
-        """Generate search queries for company details"""
+        """Generate search queries for company details - LIMITED to reduce API calls"""
+        # REDUCED from 8 to 2 queries to save Tavily API resources
+        # These 2 comprehensive queries should capture most important info
         return [
-            f"{company_name} company profile",
-            f"{company_name} about us company information",
-            f"{company_name} business model revenue",
-            f"{company_name} funding investors",
-            f"{company_name} products services",
-            f"{company_name} leadership team",
-            f"{company_name} recent news updates",
-            f"{company_name} financial results"
+            f"{company_name} company profile overview business model products",
+            f"{company_name} funding revenue recent news competitors"
         ]
     
     def _generate_market_analysis_queries(self, 
@@ -686,12 +688,13 @@ class TavilyService:
     
     async def search_with_custom_query(self, 
                                      query: str, 
-                                     search_type: str = "custom") -> List[Dict[str, Any]]:
+                                     search_type: str = "custom",
+                                     demo_mode: bool = False) -> List[Dict[str, Any]]:
         """Perform a custom search with the given query"""
         
-        # Use demo mode if enabled
-        if self.demo_mode or not self.client:
-            logger.info(f"Using demo mode for custom search (demo_mode={self.demo_mode})")
+        # Use demo mode if requested or client unavailable
+        if demo_mode or not self.client:
+            logger.info(f"Using demo mode for custom search (demo_mode={demo_mode}, client_available={self.client is not None})")
             return await self._get_demo_custom_search(query, search_type)
         
         try:

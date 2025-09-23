@@ -6,6 +6,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from loguru import logger
 import uvicorn
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv(dotenv_path='/app/backend/.env')
 
 from database.connection import startup_event, shutdown_event
 from database.repositories import AnalysisRepository, ReportRepository

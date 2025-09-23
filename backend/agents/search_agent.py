@@ -123,13 +123,20 @@ class SearchAgent:
             industry=context.industry,
             target_market=context.target_market,
             business_model=context.business_model,
-            specific_requirements=context.specific_requirements
+            specific_requirements=context.specific_requirements,
+            demo_mode=context.demo_mode,
+            max_competitors=context.max_competitors
         )
         
-        # Add search logs to state
+        # Add search logs to state (but limit stored results to avoid MongoDB 16MB limit)
         from models.agent_state import SearchLog
         for log_dict in search_logs:
-            search_log = SearchLog(**log_dict)
+            # Truncate results in search log to avoid storing too much data
+            truncated_log = log_dict.copy()
+            if 'results' in truncated_log and len(truncated_log['results']) > 5:
+                truncated_log['results'] = truncated_log['results'][:5]
+                truncated_log['processing_notes'] = f"Truncated from {len(log_dict['results'])} to 5 results for storage"
+            search_log = SearchLog(**truncated_log)
             state.add_search_log(search_log)
         
         # Extract competitor names from results
@@ -148,7 +155,7 @@ class SearchAgent:
             await self._update_progress(state, "search", progress, f"Collecting data for {competitor_name}")
             
             # Search for company details
-            company_data, company_search_logs = await self.tavily_service.search_company_details(competitor_name)
+            company_data, company_search_logs = await self.tavily_service.search_company_details(competitor_name, demo_mode=state.analysis_context.demo_mode)
             
             # Add search logs to state
             from models.agent_state import SearchLog
@@ -163,11 +170,20 @@ class SearchAgent:
         return competitor_data
     
     def _extract_competitors_from_results(self, results: List[Dict[str, Any]], context) -> Set[str]:
-        """Extract competitor names from search results"""
+        """Extract competitor names from search results - limited to avoid resource waste"""
         competitors = set()
         client_company_lower = context.client_company.lower()
+        max_competitors = context.max_competitors
         
-        for result in results:
+        # Limit how many results we process to avoid extracting too many competitors
+        # Process at most 2x the requested number of results to find enough competitors
+        max_results_to_process = min(len(results), max_competitors * 2)
+        
+        for result in results[:max_results_to_process]:
+            # Stop if we have enough competitors (add buffer for filtering)
+            if len(competitors) >= max_competitors * 1.5:
+                break
+                
             title = result.get('title', '')
             content = result.get('content', '')
             
@@ -180,6 +196,7 @@ class SearchAgent:
             if company_name and len(company_name) > 2:
                 competitors.add(company_name)
         
+        logger.info(f"🎯 Extracted {len(competitors)} competitors from {max_results_to_process} search results (requested: {max_competitors})")
         return competitors
     
     def _extract_company_name_from_title(self, title: str) -> str:
@@ -332,13 +349,19 @@ class SearchAgent:
             product_name=context.client_product,
             category=context.product_category,
             target_market=context.target_market,
-            comparison_criteria=context.comparison_criteria
+            comparison_criteria=context.comparison_criteria,
+            demo_mode=context.demo_mode
         )
         
-        # Add search logs to state
+        # Add search logs to state (but limit stored results to avoid MongoDB 16MB limit)
         from models.agent_state import SearchLog
         for log_dict in search_logs:
-            search_log = SearchLog(**log_dict)
+            # Truncate results in search log to avoid storing too much data
+            truncated_log = log_dict.copy()
+            if 'results' in truncated_log and len(truncated_log['results']) > 5:
+                truncated_log['results'] = truncated_log['results'][:5]
+                truncated_log['processing_notes'] = f"Truncated from {len(log_dict['results'])} to 5 results for storage"
+            search_log = SearchLog(**truncated_log)
             state.add_search_log(search_log)
         
         # Extract product names from results
@@ -361,7 +384,8 @@ class SearchAgent:
                 product_name,
                 include_features=True,
                 include_pricing=True,
-                include_reviews=True
+                include_reviews=True,
+                demo_mode=state.analysis_context.demo_mode
             )
             
             # Add search logs to state
