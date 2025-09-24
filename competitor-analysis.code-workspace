@@ -1,0 +1,75 @@
+{
+    "folders": [
+        {
+            "name": "Root",
+            "path": "."
+        },
+        {
+            "name": "Backend",
+            "path": "./backend"
+        },
+        {
+            "name": "Frontend", 
+            "path": "./frontend"
+        }
+    ],
+    "settings": {
+        "python.interpreter.path": "./venv/bin/python",
+        "python.defaultInterpreterPath": "./venv/bin/python",
+        "python.analysis.extraPaths": [
+            "./backend",
+            "./backend/api",
+            "./backend/models",
+            "./backend/services", 
+            "./backend/agents",
+            "./backend/database",
+            "./backend/utils"
+        ],
+        "python.analysis.autoSearchPaths": true,
+        "python.analysis.autoImportCompletions": true,
+        "python.languageServer": "Pylance",
+        "python.analysis.typeCheckingMode": "basic",
+        "python.analysis.indexing": true,
+        "python.terminal.activateEnvironment": true,
+        "files.exclude": {
+            "**/__pycache__": true,
+            "**/.pytest_cache": true,
+            "**/node_modules": true,
+            "**/.git": true
+        },
+        "search.exclude": {
+            "**/node_modules": true,
+            "**/venv": true,
+            "**/.git": true
+        },
+        
+        // Formatting Control
+        "editor.formatOnSave": false,
+        "editor.formatOnPaste": false,
+        "editor.formatOnType": false,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "never",
+            "source.fixAll": "never"
+        },
+        
+        // Python formatting
+        "python.formatting.provider": "none",
+        
+        // Language-specific
+        "[python]": {
+            "editor.formatOnSave": false,
+            "editor.codeActionsOnSave": {
+                "source.organizeImports": "never"
+            }
+        }
+    },
+    "extensions": {
+        "recommendations": [
+            "ms-python.python",
+            "ms-python.pylance",
+            "ms-python.flake8",
+            "bradlc.vscode-tailwindcss",
+            "esbenp.prettier-vscode"
+        ]
+    }
+}
