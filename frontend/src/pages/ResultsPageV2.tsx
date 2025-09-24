@@ -846,18 +846,23 @@ const ResultsPageV2: React.FC = () => {
                           <Typography variant="h6" fontWeight="600" color="text.secondary" sx={{ mb: 1 }}>
                             Market Size
                           </Typography>
-                          {typeof marketData.market_size === 'object' ? (
+                          {typeof marketData.market_size === 'object' && marketData.market_size.constructor === Object ? (
                             <>
                               <Typography variant="h5" component="p" fontWeight="700" color="text.primary">
-                                {marketData.market_size.current_market_size}
+                                {String(marketData.market_size.current_market_size || '')}
                               </Typography>
                               <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                                Growth: {marketData.market_size.growth_rate}
+                                Growth: {String(marketData.market_size.growth_rate || '')}
                               </Typography>
+                              {marketData.market_size.description && (
+                                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                                  {String(marketData.market_size.description)}
+                                </Typography>
+                              )}
                             </>
                           ) : (
                             <Typography variant="body1" color="text.primary">
-                              {marketData.market_size}
+                              {String(marketData.market_size || '')}
                             </Typography>
                           )}
                         </Paper>
@@ -868,18 +873,18 @@ const ResultsPageV2: React.FC = () => {
                           <Typography variant="h6" fontWeight="600" color="warning.main" sx={{ mb: 1 }}>
                             Competition Level
                           </Typography>
-                          {typeof marketData.competitive_intensity === 'object' ? (
+                          {typeof marketData.competitive_intensity === 'object' && marketData.competitive_intensity.constructor === Object ? (
                             <>
                               <Typography variant="h5" component="p" fontWeight="700" color="warning.dark">
-                                {marketData.competitive_intensity.level}
+                                {String(marketData.competitive_intensity.level || '')}
                               </Typography>
                               <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                                {marketData.competitive_intensity.explanation}
+                                {String(marketData.competitive_intensity.description || '')}
                               </Typography>
                             </>
                           ) : (
                             <Typography variant="body1" color="text.primary">
-                              {marketData.competitive_intensity}
+                              {String(marketData.competitive_intensity || '')}
                             </Typography>
                           )}
                         </Paper>
@@ -1042,24 +1047,30 @@ const ResultsPageV2: React.FC = () => {
                       <Typography variant="h6" fontWeight="600" color="text.primary" sx={{ mb: 2 }}>
                         Market Outlook
                       </Typography>
-                      {marketData.outlook['12_month_market_outlook'] ? (
+                      {marketData.outlook && typeof marketData.outlook === 'object' && marketData.outlook.constructor === Object ? (
                         <Box>
-                          <Typography variant="body1" fontWeight="500" color="text.primary" sx={{ mb: 1 }}>
-                            12-Month Outlook
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {marketData.outlook['12_month_market_outlook']}
-                          </Typography>
+                          {marketData.outlook['12_month_outlook'] && typeof marketData.outlook['12_month_outlook'] === 'string' && (
+                            <Box sx={{ mb: 2 }}>
+                              <Typography variant="body1" fontWeight="500" color="text.primary" sx={{ mb: 1 }}>
+                                12-Month Outlook: {String(marketData.outlook['12_month_outlook'])}
+                              </Typography>
+                            </Box>
+                          )}
+                          {marketData.outlook.description && typeof marketData.outlook.description === 'string' && (
+                            <Typography variant="body2" color="text.secondary">
+                              {String(marketData.outlook.description)}
+                            </Typography>
+                          )}
                         </Box>
                       ) : typeof marketData.outlook === 'string' ? (
                         <Typography variant="body1" color="text.primary">
-                          {marketData.outlook}
+                          {String(marketData.outlook)}
                         </Typography>
-                      ) : (
+                      ) : marketData.outlook ? (
                         <Typography variant="body1" color="text.primary">
                           {JSON.stringify(marketData.outlook)}
                         </Typography>
-                      )}
+                      ) : null}
                     </Paper>
                   )}
                 </Box>

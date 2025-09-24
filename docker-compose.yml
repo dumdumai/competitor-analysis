@@ -16,16 +16,34 @@ services:
     networks:
       - competitor-analysis-network
 
-  # Redis Cache
+  # Redis Stack for LangGraph checkpointer support
   redis:
-    image: redis:7-alpine
+    image: redis/redis-stack:latest
     container_name: competitor-analysis-redis
     restart: always
     ports:
       - "6379:6379"
-    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+      - "8001:8001"  # RedisInsight web UI
+    environment:
+      - REDIS_ARGS=--maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
+    networks:
+      - competitor-analysis-network
+
+  # PostgreSQL for LangGraph checkpointer
+  postgres:
+    image: postgres:16
+    container_name: competitor-analysis-postgres
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: competitor_analysis
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - competitor-analysis-network
 
@@ -42,12 +60,14 @@ services:
       MONGODB_URI: mongodb://admin:admin123@mongodb:27017/competitor_analysis?authSource=admin
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      PYTHONPATH: /app/backend
+      POSTGRES_URI: postgresql://postgres:postgres@postgres:5432/competitor_analysis
+      PYTHONPATH: /home/appuser/.local/lib/python3.11/site-packages:/app/backend
     env_file:
       - ./backend/.env
     depends_on:
       - mongodb
       - redis
+      - postgres
     volumes:
       - ./backend:/app/backend
       - ./pyproject.toml:/app/pyproject.toml
@@ -76,6 +96,7 @@ services:
 volumes:
   mongodb_data:
   redis_data:
+  postgres_data:
 
 networks:
   competitor-analysis-network:

@@ -1,21 +1,15 @@
 from .coordinator import CompetitorAnalysisCoordinator
-from .client_onboarding import ClientOnboardingAgent
-from .competitor_discovery import CompetitorDiscoveryAgent
-from .data_collection import DataCollectionAgent
-from .data_processing import DataProcessingAgent
-from .quality_assurance import QualityAssuranceAgent
-from .market_analysis import MarketAnalysisAgent
-from .competitive_analysis import CompetitiveAnalysisAgent
-from .report_generation import ReportGenerationAgent
+from .search_agent import SearchAgent
+from .analysis_agent import AnalysisAgent
+from .quality_agent import QualityAgent
+from .llm_quality_agent import LLMQualityAgent
+from .report_agent import ReportAgent
 
 __all__ = [
     "CompetitorAnalysisCoordinator",
-    "ClientOnboardingAgent",
-    "CompetitorDiscoveryAgent", 
-    "DataCollectionAgent",
-    "DataProcessingAgent",
-    "QualityAssuranceAgent",
-    "MarketAnalysisAgent",
-    "CompetitiveAnalysisAgent",
-    "ReportGenerationAgent"
+    "SearchAgent",
+    "AnalysisAgent",
+    "QualityAgent",
+    "LLMQualityAgent",
+    "ReportAgent"
 ]

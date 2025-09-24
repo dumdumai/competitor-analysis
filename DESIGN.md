@@ -61,135 +61,95 @@ This document outlines the design for an AI-powered competitor analysis system u
 
 ### LangGraph Workflow Design
 
+**Current Streamlined Architecture:**
 ```
-[Client Onboarding Agent]
+[CompetitorAnalysisCoordinator]
     ↓
-[Competitor Discovery Agent] ←→ [Tavily Research Agent]
+[SearchAgent] ←→ [Tavily Research API]
     ↓
-[Data Collection Coordinator]
-    ↓ (parallel execution)
-    ├── [Web Intelligence Agent] ←→ [Tavily Scraper]
-    ├── [Social Media Agent] ←→ [Tavily Social Monitor]
-    ├── [Financial Data Agent] ←→ [Tavily News Search]
-    └── [Product Analysis Agent] ←→ [Tavily Feature Extractor]
+[AnalysisAgent] ←→ [OpenAI GPT-4]
     ↓
-[Data Validation Agent]
+[QualityAgent] (Data validation & scoring)
     ↓
-[Analysis Coordinator]
-    ↓ (parallel execution)
-    ├── [SWOT Analysis Agent]
-    ├── [Market Positioning Agent]
-    ├── [Sentiment Analysis Agent]
-    └── [Competitive Gap Agent]
-    ↓
-[Insight Synthesis Agent]
-    ↓
-[Report Generation Agent]
-    ↓
-[Quality Review Agent]
-    ↓
-[Client Delivery Agent]
-    ↓
-[Monitoring Setup Agent] (if continuous monitoring enabled)
+[ReportAgent] (Final report generation)
 ```
+
+**Note:** The system has been optimized to use only 4 core agents for efficient processing:
+- **SearchAgent**: Handles competitor discovery and data collection via Tavily
+- **AnalysisAgent**: Performs SWOT, positioning, and sentiment analysis via LLM
+- **QualityAgent**: Validates data quality and assigns confidence scores
+- **ReportAgent**: Generates comprehensive reports and recommendations
+
+This streamlined approach reduces complexity while maintaining full analytical capabilities.
 
 ### Core Agents and Responsibilities
 
-#### 1. Client Onboarding Agent
-- **Purpose**: Understand client requirements and objectives
-- **Tavily Integration**: Research industry context and market overview
-- **Outputs**: Analysis brief, competitor scope, success metrics
-
-#### 2. Competitor Discovery Agent
-- **Purpose**: Identify relevant competitors in the market
+#### 1. SearchAgent (backend/agents/search_agent.py)
+- **Purpose**: Comprehensive competitor discovery and data collection
 - **Tavily Integration**: 
   - Search for companies in client's industry
   - Discover emerging players and startups
-  - Map competitive landscape
-- **Outputs**: Categorized competitor list with relevance scores
+  - Collect web presence data and content
+  - Extract product information and pricing
+  - Gather business intelligence and news
+- **Outputs**: Structured competitor profiles with relevance scores
 
-#### 3. Web Intelligence Agent
-- **Purpose**: Collect competitor web presence data
-- **Tavily Integration**:
-  - Scrape competitor websites
-  - Extract product information, pricing
-  - Analyze content strategy and messaging
-- **Outputs**: Structured competitor profile data
+#### 2. AnalysisAgent (backend/agents/analysis_agent.py)
+- **Purpose**: Multi-dimensional competitive analysis using LLM
+- **OpenAI Integration**:
+  - Generate comprehensive SWOT analysis
+  - Perform market positioning analysis
+  - Conduct sentiment analysis on collected data
+  - Identify competitive gaps and opportunities
+- **Outputs**: Strategic analysis results and insights
 
-#### 4. Social Media Agent
-- **Purpose**: Monitor competitor social media presence
-- **Tavily Integration**:
-  - Track social media mentions
-  - Analyze engagement metrics
-  - Monitor brand sentiment
-- **Outputs**: Social media analytics and sentiment scores
+#### 3. QualityAgent (backend/agents/quality_agent.py)
+- **Purpose**: Data validation and quality assurance
+- **Capabilities**:
+  - Validate data accuracy and completeness
+  - Cross-reference information from multiple sources
+  - Assign confidence scores to findings
+  - Flag potential data quality issues
+- **Outputs**: Quality metrics and validated datasets
 
-#### 5. Financial Data Agent
-- **Purpose**: Gather financial and business intelligence
-- **Tavily Integration**:
-  - Search for funding information
-  - Find revenue and growth data
-  - Discover partnership announcements
-- **Outputs**: Financial profile and business metrics
-
-#### 6. SWOT Analysis Agent
-- **Purpose**: Generate comprehensive SWOT analysis
-- **Tavily Integration**: Gather supporting evidence for strengths/weaknesses
-- **Outputs**: Structured SWOT analysis with evidence
-
-#### 7. Market Positioning Agent
-- **Purpose**: Analyze competitive positioning
-- **Tavily Integration**: Research market trends and positioning strategies
-- **Outputs**: Competitive positioning map and analysis
-
-#### 8. Insight Synthesis Agent
-- **Purpose**: Combine all analysis into actionable insights
-- **Tavily Integration**: Validate insights with latest market data
-- **Outputs**: Strategic recommendations and opportunity identification
+#### 4. ReportAgent (backend/agents/report_agent.py)
+- **Purpose**: Final report synthesis and generation
+- **Capabilities**:
+  - Combine all analysis into executive summary
+  - Generate strategic recommendations
+  - Create competitive landscape visualization data
+  - Format results for client delivery
+- **Outputs**: Comprehensive analysis reports and dashboards
 
 ### LangGraph State Management
 
+**Current Implementation (backend/models/agent_state.py):**
 ```python
 from typing import TypedDict, List, Dict, Any
-from langgraph.graph import StateGraph
+from pydantic import BaseModel
 
-class CompetitorAnalysisState(TypedDict):
-    # Client Information
-    client_id: str
-    client_objectives: List[str]
-    target_industry: str
-    geographic_scope: List[str]
-    analysis_timeline: str
+class AgentState(BaseModel):
+    # Analysis Context
+    analysis_context: Dict[str, Any]  # Client requirements and parameters
     
-    # Competitor Data
-    identified_competitors: List[Dict[str, Any]]
-    competitor_profiles: Dict[str, Dict[str, Any]]
-    competitor_categories: Dict[str, List[str]]
-    
-    # Collected Data
-    web_intelligence: Dict[str, Any]
-    social_media_data: Dict[str, Any]
-    financial_data: Dict[str, Any]
-    product_data: Dict[str, Any]
+    # Search and Discovery
+    search_results: List[Dict[str, Any]]  # Raw Tavily search results
+    competitor_data: List[Dict[str, Any]]  # Structured competitor information
     
     # Analysis Results
-    swot_analysis: Dict[str, Any]
-    market_positioning: Dict[str, Any]
-    sentiment_analysis: Dict[str, Any]
-    competitive_gaps: List[Dict[str, Any]]
+    processed_data: Dict[str, Any]  # Analyzed and enriched data
+    quality_scores: Dict[str, float]  # Data quality metrics per competitor
     
     # Final Outputs
-    executive_summary: str
-    strategic_recommendations: List[str]
-    competitive_insights: List[Dict[str, Any]]
-    report_data: Dict[str, Any]
+    final_report: Dict[str, Any]  # Complete analysis report
     
     # Workflow Control
-    current_stage: str
-    completion_status: Dict[str, bool]
-    error_logs: List[str]
-    quality_scores: Dict[str, float]
+    current_agent: str  # Track current processing agent
+    errors: List[str]  # Error tracking
+    metadata: Dict[str, Any]  # Additional workflow metadata
 ```
+
+This streamlined state model flows through the 4-agent workflow, with each agent adding their specific contributions to the shared state.
 
 ### Tavily Integration Strategy
 
@@ -265,21 +225,36 @@ market_queries = [
 ## Technical Specifications
 
 ### Technology Stack
-- **Orchestration**: LangGraph 0.2.28+
-- **Data Collection**: Tavily API + Custom scrapers
-- **LLM**: OpenAI GPT-4 for analysis and insights
-- **Database**: MongoDB for data storage
-- **Cache**: Redis for temporary data
-- **Frontend**: React with data visualization
-- **Backend**: FastAPI with async processing
+- **Backend**: FastAPI with Python 3.12 + uvicorn ASGI server
+- **Frontend**: React 18 + TypeScript with Material-UI components
+- **Orchestration**: LangGraph for multi-agent workflow management
+- **AI Services**: OpenAI GPT-4 for analysis + Tavily API for web intelligence
+- **Database**: MongoDB with Motor (async driver) for data persistence
+- **Cache**: Redis for real-time updates and temporary data storage
+- **Development**: Modern Python project structure with pyproject.toml
+- **Containerization**: Docker & Docker Compose for local development
 
 ### API Endpoints
+**Current Implementation (FastAPI):**
 ```
-POST /api/competitor-analysis/start
-GET /api/competitor-analysis/status/{analysis_id}
-GET /api/competitor-analysis/results/{analysis_id}
-POST /api/competitor-analysis/monitor/setup
-GET /api/competitor-analysis/monitor/alerts
+# Analysis Workflow
+POST /api/v1/analysis/start          # Initiate new competitor analysis
+GET  /api/v1/analysis/{id}/status    # Get analysis progress
+GET  /api/v1/analysis/{id}/result    # Retrieve completed results
+
+# Reports Management  
+GET  /api/v1/reports                 # List all analysis reports
+GET  /api/v1/reports/{id}           # Get specific report details
+
+# Product Management
+GET  /api/v1/products               # List analyzed products/companies
+
+# Real-time Updates
+WS   /ws/analysis/{analysis_id}     # WebSocket for live progress updates
+
+# System Health
+GET  /health                        # Health check endpoint
+GET  /                             # API root with documentation links
 ```
 
 ### Data Models

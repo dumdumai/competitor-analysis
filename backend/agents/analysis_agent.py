@@ -2,9 +2,11 @@ import asyncio
 from typing import Dict, Any, List
 from loguru import logger
 from models.agent_state import AgentState
+from models.analysis import CompetitorData
 from services.llm_service import LLMService
 from services.tavily_service import TavilyService
 from services.redis_service import RedisService
+from pydantic import BaseModel
 
 
 class AnalysisAgent:
@@ -34,16 +36,20 @@ class AnalysisAgent:
             # Update progress
             await self._update_progress(state, "analysis", 5, "Initializing AI analysis")
             
+            # Stage 0: Structure Competitor Data (NEW - Fix the core issue!)
+            await self._update_progress(state, "analysis", 15, "Structuring competitor data with AI")
+            await self._structure_competitor_data(state)
+            
             # Stage 1: Market Analysis (enhanced based on feedback)
-            await self._update_progress(state, "analysis", 20, "Analyzing market landscape")
+            await self._update_progress(state, "analysis", 35, "Analyzing market landscape")
             market_insights = await self._analyze_market_landscape(state)
             
             # Stage 2: Competitive Analysis (enhanced based on feedback)
-            await self._update_progress(state, "analysis", 50, "Analyzing competitive positioning")
+            await self._update_progress(state, "analysis", 65, "Analyzing competitive positioning")
             competitive_insights = await self._analyze_competitive_landscape(state)
             
             # Stage 3: Strategic Recommendations
-            await self._update_progress(state, "analysis", 80, "Generating strategic insights")
+            await self._update_progress(state, "analysis", 85, "Generating strategic insights")
             recommendations = await self._generate_recommendations(state, market_insights, competitive_insights)
             
             # Store results
@@ -92,10 +98,24 @@ class AnalysisAgent:
             
             market_data = []
             # Just do one comprehensive market search instead of looping
-            results, market_search_logs = await self.tavily_service.search_market_analysis(
-                context.industry, context.target_market
-            )
-            market_data.extend(results)
+            try:
+                search_result = await self.tavily_service.search_market_analysis(
+                    context.industry, context.target_market, demo_mode=context.demo_mode
+                )
+                
+                # Handle both tuple and single return formats
+                if isinstance(search_result, tuple) and len(search_result) == 2:
+                    results, market_search_logs = search_result
+                else:
+                    results = search_result if search_result else []
+                    market_search_logs = []
+                    
+                market_data.extend(results)
+                
+            except Exception as e:
+                logger.error(f"❌ Market analysis search failed: {e}")
+                results = []
+                market_search_logs = []
             
             # Add search logs to state
             from models.agent_state import SearchLog
@@ -321,3 +341,208 @@ class AnalysisAgent:
             issue for issue in state.retry_context.quality_feedback 
             if issue.retry_agent != "analysis"
         ]
+
+    async def _structure_competitor_data(self, state: AgentState):
+        """
+        Convert raw Tavily search data into structured CompetitorData objects using LLM.
+        This fixes the core issue where we had raw strings instead of proper competitor objects.
+        """
+        try:
+            logger.info("🏗️ Structuring competitor data using LLM for proper CompetitorData objects")
+            
+            # Get raw competitor names from search
+            raw_competitors = state.discovered_competitors
+            raw_search_data = state.search_results.get("search_data", [])
+            
+            if not raw_competitors:
+                logger.warning("⚠️ No raw competitors found to structure")
+                return
+            
+            logger.info(f"📊 Processing {len(raw_competitors)} raw competitors: {raw_competitors}")
+            
+            # Create structured competitor data using LLM
+            structured_competitors = []
+            
+            for competitor_name in raw_competitors:
+                try:
+                    # Find relevant search data for this competitor
+                    relevant_data = []
+                    for search_item in raw_search_data:
+                        if competitor_name.lower() in search_item.get('title', '').lower() or \
+                           competitor_name.lower() in search_item.get('content', '').lower():
+                            relevant_data.append(search_item)
+                    
+                    # Use LLM to structure the competitor data
+                    structured_competitor = await self._llm_structure_single_competitor(
+                        competitor_name, relevant_data, state.analysis_context
+                    )
+                    
+                    if structured_competitor:
+                        structured_competitors.append(structured_competitor)
+                        logger.info(f"✅ Structured competitor: {structured_competitor.name}")
+                    else:
+                        logger.warning(f"⚠️ Could not structure competitor: {competitor_name}")
+                        
+                except Exception as e:
+                    logger.error(f"❌ Error structuring competitor {competitor_name}: {e}")
+                    continue
+            
+            # Update state with structured competitors
+            state.competitor_data = structured_competitors
+            logger.info(f"🎯 Successfully structured {len(structured_competitors)} competitors into CompetitorData objects")
+            
+        except Exception as e:
+            logger.error(f"❌ Error in _structure_competitor_data: {e}")
+            # Don't fail the entire analysis, just log the error
+    
+    async def _llm_structure_single_competitor(self, competitor_name: str, search_data: List[Dict], context) -> CompetitorData:
+        """Use LLM to create a structured CompetitorData object from raw search data"""
+        
+        # Enhanced Pydantic model for comprehensive competitor data  
+        class StructuredCompetitor(BaseModel):
+            name: str
+            description: str  
+            business_model: str
+            target_market: str
+            industry: str
+            key_products: List[str] = []
+            strengths: List[str] = []
+            weaknesses: List[str] = []
+            market_position: str = "Competitor"
+            pricing_strategy: str = ""
+            headquarters: str = ""
+            employee_count: str = ""
+            website: str = ""
+            founding_year: int = None
+        
+        # Prepare search data summary
+        search_summary = ""
+        for item in search_data[:5]:  # Limit to avoid token overflow
+            search_summary += f"Title: {item.get('title', '')}\nContent: {item.get('content', '')[:200]}\n\n"
+        
+        if not search_summary.strip():
+            search_summary = f"Limited information available for {competitor_name}"
+        
+        # Enhanced LLM prompt for better competitor structuring
+        prompt = f"""
+        You are a business analyst creating a detailed competitor profile. Analyze the search data and create a comprehensive business profile.
+        
+        Company to Analyze: {competitor_name}
+        Industry: {context.industry}
+        Target Market: {context.target_market}
+        Client Context: {context.business_model}
+        
+        Search Data Available:
+        {search_summary}
+        
+        Create a detailed competitor analysis with these requirements:
+        
+        1. name: Clean company name (remove prefixes like "Top 5", "TRENDING", "Market Analysis")
+        2. description: Professional 2-3 sentence company overview focusing on their business
+        3. business_model: Specific revenue model (B2B SaaS, marketplace, consulting, etc.)
+        4. target_market: Who they serve (enterprise, SMB, consumers, etc.)
+        5. industry: Primary industry sector they operate in
+        6. key_products: 3-5 main products or services they offer
+        7. strengths: 3-4 key competitive advantages
+        8. weaknesses: 2-3 potential challenges or limitations
+        9. market_position: Market position (leader, challenger, niche player, emerging)
+        10. pricing_strategy: How they price their offerings (if known)
+        11. headquarters: Location if mentioned
+        12. employee_count: Approximate size if mentioned
+        
+        Base your analysis on the search data provided. If specific details aren't available, make reasonable inferences based on the industry context and company type.
+        Be specific and professional - avoid generic descriptions.
+        """
+        
+        try:
+            logger.info(f"🤖 Starting LLM structuring for: {competitor_name}")
+            
+            # Use structured output from LLM
+            response = await self.llm_service.get_structured_response(
+                prompt=prompt,
+                response_model=StructuredCompetitor,
+                max_tokens=1200  # Increased for more detailed responses
+            )
+            
+            if response:
+                logger.info(f"✅ LLM generated structured data for: {response.name}")
+                
+                # Convert to CompetitorData - matching exact demo structure
+                competitor_data = CompetitorData(
+                    name=response.name,
+                    website=response.website or "",
+                    description=response.description,
+                    business_model=response.business_model,
+                    target_market=response.target_market,
+                    industry=response.industry,
+                    founding_year=response.founding_year,
+                    headquarters=response.headquarters or None,
+                    employee_count=response.employee_count or None,
+                    funding_info=None,  # Demo uses None
+                    key_products=response.key_products or [],
+                    pricing_strategy=response.pricing_strategy or None,
+                    market_position=response.market_position or None,
+                    strengths=response.strengths or [],
+                    weaknesses=response.weaknesses or [],
+                    recent_news=[],
+                    social_media_presence={},
+                    financial_data=None,
+                    technology_stack=[],
+                    partnerships=[],
+                    competitive_advantages=response.strengths or [],
+                    market_share=None,
+                    growth_trajectory=None,
+                    threat_level=None,  # Demo uses None, not "medium"
+                    primary_product=None,  # Add missing field
+                    product_details=None,  # Add missing field
+                    product_features=[],  # Add missing field
+                    product_pricing=None,  # Add missing field
+                    product_reviews=None  # Add missing field
+                )
+                
+                logger.info(f"🎯 Created rich CompetitorData for: {competitor_data.name} ({competitor_data.business_model})")
+                return competitor_data
+            else:
+                logger.warning(f"⚠️ LLM returned empty response for {competitor_name}")
+            
+        except Exception as e:
+            logger.error(f"❌ LLM structuring failed for {competitor_name}: {e}")
+            import traceback
+            logger.error(f"Full error trace: {traceback.format_exc()}")
+            
+        # Enhanced fallback: create informative CompetitorData object
+        clean_name = competitor_name.replace("TRENDING NOW", "").replace("Top 5", "").replace("Market Analysis", "").strip()
+        
+        logger.warning(f"🔄 Using enhanced fallback for: {clean_name}")
+        
+        return CompetitorData(
+            name=clean_name,
+            website="",
+            description=f"{clean_name} is a competitor operating in the {context.industry} industry, targeting {context.target_market} with {context.business_model} solutions.",
+            business_model=f"{context.business_model}",  # Use client context as fallback
+            target_market=context.target_market,
+            industry=context.industry,  # This fixes the missing industry issue!
+            founding_year=None,
+            headquarters=None,
+            employee_count=None,
+            funding_info=None,
+            key_products=[f"{context.industry} solutions"],
+            pricing_strategy=None,
+            market_position="Competitor",
+            strengths=["Market presence", "Industry experience"],
+            weaknesses=["Limited public information"],
+            recent_news=[],
+            social_media_presence={},
+            financial_data=None,
+            technology_stack=[],
+            partnerships=[],
+            competitive_advantages=["Market presence"],
+            market_share=None,
+            growth_trajectory=None,
+            threat_level=None,
+            primary_product=None,
+            product_details=None,
+            product_features=[],
+            product_pricing=None,
+            product_reviews=None
+        )

@@ -227,9 +227,9 @@ This analysis provides the foundation for strategic decision-making and competit
         competitors = report_data.get("competitors", [])
         
         # Categorize competitors by market position
-        market_leaders = [c for c in competitors if c.get("market_position", "").lower() in ["market leader", "leader", "dominant"]]
-        challengers = [c for c in competitors if "challenger" in c.get("market_position", "").lower()]
-        emerging_players = [c for c in competitors if "emerging" in c.get("market_position", "").lower()]
+        market_leaders = [c for c in competitors if (c.get("market_position") or "").lower() in ["market leader", "leader", "dominant"]]
+        challengers = [c for c in competitors if "challenger" in (c.get("market_position") or "").lower()]
+        emerging_players = [c for c in competitors if "emerging" in (c.get("market_position") or "").lower()]
         
         return {
             "title": "Competitive Landscape",

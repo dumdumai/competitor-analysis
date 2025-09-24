@@ -25,6 +25,8 @@ Built on **LangGraph** with specialized agents:
 - **ReportAgent**: Report generation and delivery
 - **CompetitorAnalysisCoordinator**: Main orchestrator managing agent workflow
 
+*Note: Unused agent files have been removed to streamline the codebase. Only the active agents listed above are included.*
+
 ### Tech Stack
 
 **Backend:**
@@ -77,22 +79,22 @@ competitor-analysis-system/
 - **Docker & Docker Compose**
 - **Git**
 
-### Option 1: Automated Setup (Recommended)
+### Option 1: Quick Local Setup (Recommended)
 
 ```bash
 # Clone the repository
 git clone <repository-url>
 cd competitor-analysis-system
 
-# Run automated setup
-./scripts/setup.sh
+# Initialize project with all dependencies
+make init
 
 # Configure environment
 cp backend/.env.example backend/.env
 # Edit backend/.env and add your API keys
 
-# Start development environment
-./scripts/dev.sh
+# Start full stack development environment
+make local
 ```
 
 ### Option 2: Manual Setup
@@ -103,7 +105,7 @@ python3.12 -m venv venv
 source venv/bin/activate
 
 # 2. Install backend dependencies
-pip install -r backend/requirements.txt
+cd backend && pip install -r requirements.txt && cd ..
 
 # 3. Install frontend dependencies
 cd frontend && npm install && cd ..
@@ -111,7 +113,7 @@ cd frontend && npm install && cd ..
 # 4. Configure environment
 cp backend/.env.example backend/.env
 
-# 5. Start services
+# 5. Start databases and services
 make local
 ```
 
@@ -121,7 +123,7 @@ make local
 # Initialize project
 make init
 
-# Start development environment
+# Start full Docker development environment
 make dev
 ```
 

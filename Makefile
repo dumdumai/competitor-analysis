@@ -16,8 +16,8 @@ help:
 	@echo "  make test       - Run tests"
 	@echo "  make dev        - Start development environment"
 	@echo "  make prod       - Start production environment"
-	@echo "  make local      - Run backend locally with uvicorn"
-	@echo "  make local-full - Run full stack locally (backend + frontend)"
+	@echo "  make local        - Run full stack locally (databases + backend + frontend)"
+	@echo "  make local-backend - Run backend only (databases + backend)"
 
 # Install dependencies
 install:
@@ -110,17 +110,25 @@ health-check:
 	@curl -s http://localhost:3000 || echo "Frontend is not responding"
 
 # Local development (backend only)
-local:
+local-backend:
+	@echo "Starting databases..."
+	docker-compose up -d mongodb redis
+	@echo "Waiting for databases to be ready..."
+	sleep 5
 	@echo "Starting backend locally..."
-	source venv/bin/activate && python run.py
+	source venv/bin/activate && cd backend && uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 
-# Local development (full stack)
-local-full: 
+# Local development (full stack) - DEFAULT
+local: 
 	@echo "Starting full stack locally..."
 	@echo "Starting databases with Docker..."
 	docker-compose up -d mongodb redis
+	@echo "Waiting for databases to be ready..."
+	sleep 5
 	@echo "Starting backend locally..."
-	source venv/bin/activate && python run.py &
+	source venv/bin/activate && cd backend && uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload &
+	@echo "Waiting for backend to start..."
+	sleep 3
 	@echo "Starting frontend..."
 	cd frontend && npm start
 

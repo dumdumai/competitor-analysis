@@ -201,18 +201,53 @@ class SearchAgent:
     
     def _extract_company_name_from_title(self, title: str) -> str:
         """Extract company name from result title"""
+        # Skip obvious non-company titles
+        skip_patterns = [
+            'trending', 'top', 'best', 'list', '10', '5', 'guide', 'analysis', 'report',
+            'market', 'industry', 'overview', 'comparison', 'review', 'how to', 'what is'
+        ]
+        
+        if any(pattern in title.lower() for pattern in skip_patterns):
+            return ""
+        
         # Simple extraction logic - take first part before common separators
-        separators = [' - ', ' | ', ':', ' Inc', ' LLC', ' Corp', ' Ltd']
+        separators = [' - ', ' | ', ':', ' Inc', ' LLC', ' Corp', ' Ltd', ' Limited']
         
         for separator in separators:
             if separator in title:
                 name = title.split(separator)[0].strip()
-                if len(name) > 2 and not any(generic in name.lower() for generic in ['top', 'best', 'list', '10']):
+                if len(name) > 2 and self._is_valid_company_name(name):
                     return name
         
-        # Fallback - take first few words
-        words = title.split()[:3]
-        return ' '.join(words) if words else title[:50]
+        # Fallback - take first 1-2 words that look like company names
+        words = title.split()[:2]
+        candidate = ' '.join(words) if words else ""
+        
+        # Additional validation - should look like a company name
+        if len(candidate) > 2 and self._is_valid_company_name(candidate):
+            return candidate
+        
+        return ""  # Return empty if no good candidate found
+    
+    def _is_valid_company_name(self, name: str) -> bool:
+        """Check if a string looks like a valid company name"""
+        # Remove common punctuation and check if it has reasonable content
+        cleaned = name.replace(' ', '').replace('-', '').replace('.', '').replace('_', '')
+        
+        # Must have at least some alphabetic characters
+        if not any(c.isalpha() for c in cleaned):
+            return False
+        
+        # Must not be purely numeric
+        if cleaned.isdigit():
+            return False
+        
+        # Should not contain too many special characters
+        special_chars = sum(1 for c in name if not (c.isalnum() or c in ' -._'))
+        if special_chars > len(name) // 3:  # More than 1/3 special chars is suspicious
+            return False
+        
+        return True
     
     async def _update_progress(self, state: AgentState, stage: str, progress: int, message: str):
         """Update progress with detailed status"""
