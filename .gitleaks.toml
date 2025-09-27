@@ -1,0 +1,83 @@
+# Gitleaks configuration file
+# This file configures gitleaks to detect secrets in your codebase
+
+title = "Competitor Analysis System - Gitleaks Config"
+
+[extend]
+# Use the default gitleaks configuration as base
+useDefault = true
+
+[allowlist]
+description = "Allowlisted files and paths"
+regexes = [
+    # Ignore specific files that might have false positives
+    '''.*\.md$''',
+    '''.*\.lock$''',
+    '''package-lock\.json$''',
+    '''yarn\.lock$''',
+    '''poetry\.lock$''',
+    '''Pipfile\.lock$''',
+    # Ignore test files with mock data
+    '''.*/test/.*''',
+    '''.*/tests/.*''',
+    '''.*/spec/.*''',
+    # Ignore build and dist folders
+    '''.*/dist/.*''',
+    '''.*/build/.*''',
+    '''.*/node_modules/.*''',
+    '''.*/.venv/.*''',
+    '''.*/venv/.*''',
+    # Ignore terraform state files (already in .gitignore)
+    '''.*\.tfstate$''',
+    '''.*\.tfstate\..*$'''
+]
+
+# Allow development database credentials (not production secrets)
+commits = [
+    "991e76721fb3189de1a2c2a71521a552d2671b91",
+    "01746d754a6507d7e31c156800ba5e5633a6a107",
+    "7e42cc34ed1d6dfa00ada1cecb831d5a2b973cb9"
+]
+
+# Custom rules for this project
+[[rules]]
+description = "Tavily API Key"
+id = "tavily-api-key"
+regex = '''(?i)(tavily[_\-\s]?api[_\-\s]?key)(.{0,20})?['\"]([0-9a-zA-Z\-_]{20,})['\""]'''
+tags = ["api-key", "tavily"]
+
+[[rules]]
+description = "OpenAI API Key"
+id = "openai-api-key"
+regex = '''(?i)(openai[_\-\s]?api[_\-\s]?key)(.{0,20})?['\"]([0-9a-zA-Z\-_]{20,})['\""]'''
+tags = ["api-key", "openai"]
+
+[[rules]]
+description = "MongoDB Connection String"
+id = "mongodb-uri"
+regex = '''mongodb(\+srv)?:\/\/[^:]+:[^@]+@[^\/]+'''
+tags = ["database", "mongodb"]
+
+[[rules]]
+description = "PostgreSQL Connection String"
+id = "postgres-uri"
+regex = '''postgres(ql)?:\/\/[^:]+:[^@]+@[^\/]+'''
+tags = ["database", "postgresql"]
+
+[[rules]]
+description = "Redis Connection String"
+id = "redis-uri"
+regex = '''redis:\/\/[^:]*:[^@]+@[^\/]+'''
+tags = ["database", "redis"]
+
+[[rules]]
+description = "AWS Access Key ID"
+id = "aws-access-key"
+regex = '''(?i)(aws[_\-\s]?access[_\-\s]?key[_\-\s]?id)(.{0,20})?['\"]([A-Z0-9]{20})['\""]'''
+tags = ["aws", "credentials"]
+
+[[rules]]
+description = "AWS Secret Access Key"
+id = "aws-secret-key"
+regex = '''(?i)(aws[_\-\s]?secret[_\-\s]?access[_\-\s]?key)(.{0,20})?['\"]([A-Za-z0-9\/\+=]{40})['\""]'''
+tags = ["aws", "credentials"]
