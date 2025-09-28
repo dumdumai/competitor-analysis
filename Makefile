@@ -35,6 +35,18 @@ build:
 	docker-compose build
 	@echo "Build complete!"
 
+# Build and deploy frontend only
+build-frontend:
+	@echo "Building and deploying frontend..."
+	docker-compose build frontend && docker-compose up -d frontend
+	@echo "Frontend build and deployment complete!"
+
+# Build and deploy backend only
+build-backend:
+	@echo "Building and deploying backend..."
+	docker-compose build backend && docker-compose up -d backend
+	@echo "Backend build and deployment complete!"
+
 # Start services
 up:
 	@echo "Starting services..."
@@ -119,7 +131,7 @@ local-backend:
 	source venv/bin/activate && cd backend && uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 
 # Local development (full stack) - DEFAULT
-local: 
+local:
 	@echo "Starting full stack locally..."
 	@echo "Starting databases with Docker..."
 	docker-compose up -d mongodb redis

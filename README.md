@@ -262,6 +262,7 @@ make redis-cli     # Redis CLI
 - **Conditional Routing**: Smart workflow routing based on data quality and analysis confidence
 - **Error Recovery**: Built-in retry mechanisms and fallback strategies
 - **Real-time Updates**: WebSocket progress tracking throughout the workflow
+- **Human Review System**: Quality-driven interrupts for human decision making (*see [HUMAN_REVIEW.md](./HUMAN_REVIEW.md)*)
 
 ![How It Works](docs/how_it_work.png)
 

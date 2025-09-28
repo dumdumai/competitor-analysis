@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { BarChart3, FileText, Home, Search, LayoutDashboard } from 'lucide-react';
+import { BarChart3, FileText, Home, Search, LayoutDashboard, Github } from 'lucide-react';
 
 const Header: React.FC = () => {
   const location = useLocation();
@@ -66,6 +66,16 @@ const Header: React.FC = () => {
               <FileText className="w-5 h-5 text-white" />
               <span className="font-medium text-white">Reports</span>
             </Link>
+            
+            <a
+              href="https://github.com/dumdumai/competitor-analysis"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg transition text-gray-600 hover:text-primary hover:bg-white hover:bg-opacity-50"
+            >
+              <Github className="w-5 h-5 text-white" />
+              <span className="font-medium text-white">GitHub</span>
+            </a>
           </nav>
         </div>
       </div>

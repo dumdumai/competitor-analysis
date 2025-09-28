@@ -343,45 +343,38 @@ class TavilyService:
         """Generate comprehensive, focused search queries combining all context"""
         additional_keywords = additional_keywords or []
 
-        # Extract key technical/functional terms from requirements
-        requirement_terms = self._extract_key_terms_from_requirements(specific_requirements)
-
-        # Build comprehensive search queries that combine all context
+        # Build comprehensive search queries using user's exact requirements as highest priority
         comprehensive_queries = []
 
-        # Priority 1: Highly specific queries combining all available context
-        if business_model and requirement_terms:
+        # Priority 1: User's specific requirements get highest priority in search
+        if specific_requirements:
+            # Use user's exact words - this gets the highest priority
             comprehensive_queries.extend([
-                f"{' '.join(requirement_terms)} {business_model} {industry} competitors {target_market}",
-                f"{industry} {business_model} companies {' '.join(requirement_terms)} competitive analysis",
-                f"top {' '.join(requirement_terms)} {industry} {business_model} providers {target_market} 2024"
+                f"{specific_requirements} competitors {target_market}",
+                f"{specific_requirements} {industry} companies {target_market}",
+                f"companies like {company_name} {specific_requirements} {target_market}",
+                f"{specific_requirements} market leaders {target_market} 2024"
             ])
 
-        # Priority 2: Business model + industry + market specific
-        if business_model:
+        # Priority 2: Combine user requirements with business context
+        if specific_requirements and business_model:
+            comprehensive_queries.extend([
+                f"{specific_requirements} {business_model} {industry} {target_market}",
+                f"{business_model} companies {specific_requirements} competitive analysis"
+            ])
+
+        # Priority 3: Fallback to basic industry search only if no specific requirements
+        if not specific_requirements:
             comprehensive_queries.extend([
                 f"{business_model} {industry} market leaders {target_market} competitive landscape",
                 f"leading {business_model} {industry} companies {target_market} analysis 2024"
             ])
 
-        # Priority 3: Requirement-driven competitor searches
-        if requirement_terms:
-            comprehensive_queries.extend([
-                f"{' '.join(requirement_terms)} {industry} companies market share analysis",
-                f"best {' '.join(requirement_terms)} {industry} solutions {target_market}"
-            ])
-
-        # Priority 4: Direct competitive analysis queries
+        # Priority 4: Company-specific competitor searches
         comprehensive_queries.extend([
-            f"{company_name} competitors {industry} {business_model} {target_market}",
-            f"{industry} competitive intelligence {business_model} market analysis 2024"
+            f"{company_name} competitors {industry} {target_market}",
+            f"alternatives to {company_name} {industry} {target_market}"
         ])
-
-        # Priority 5: Alternative and comparison queries (most targeted)
-        if business_model and requirement_terms:
-            comprehensive_queries.append(
-                f"alternatives to {company_name} {' '.join(requirement_terms)} {industry} {business_model}"
-            )
 
         # Filter out empty or too generic queries
         filtered_queries = []
@@ -619,41 +612,6 @@ class TavilyService:
             }
         ]
 
-    def _extract_key_terms_from_requirements(self, specific_requirements: str) -> List[str]:
-        """Extract key technical and functional terms from requirements"""
-        if not specific_requirements:
-            return []
-
-        req_lower = specific_requirements.lower()
-        key_terms = []
-
-        # Technology terms
-        tech_terms = {
-            'ai': 'AI-powered',
-            'artificial intelligence': 'AI-powered',
-            'machine learning': 'ML-enabled',
-            'automation': 'automation',
-            'cloud': 'cloud-based',
-            'saas': 'SaaS',
-            'platform': 'platform',
-            'integration': 'integration',
-            'analytics': 'analytics',
-            'data': 'data-driven',
-            'enterprise': 'enterprise',
-            'b2b': 'B2B',
-            'workflow': 'workflow',
-            'crm': 'CRM',
-            'erp': 'ERP',
-            'api': 'API-enabled'
-        }
-
-        # Find matching terms
-        for term, normalized in tech_terms.items():
-            if term in req_lower:
-                if normalized not in key_terms:
-                    key_terms.append(normalized)
-
-        return key_terms[:3]  # Limit to top 3 most relevant terms
 
     def _generate_company_detail_queries(self, company_name: str) -> List[str]:
         """Generate search queries for company details - LIMITED to reduce API calls"""

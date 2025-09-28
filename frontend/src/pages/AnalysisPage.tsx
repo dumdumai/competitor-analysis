@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { 
-  Search, 
-  Building2, 
-  Target, 
-  Users, 
-  FileText, 
+import {
+  Search,
+  Building2,
+  Target,
+  Users,
+  FileText,
   AlertCircle,
   CheckCircle,
   Loader,
@@ -68,7 +68,7 @@ const AnalysisPage: React.FC = () => {
     target_market: '',
     business_model: '',
     specific_requirements: '',
-    max_competitors: 10
+    max_competitors: 5
   });
   const [productForm, setProductForm] = useState<ProductForm>({
     client_product: '',
@@ -91,7 +91,7 @@ const AnalysisPage: React.FC = () => {
   useEffect(() => {
     if (location.state?.prefillData) {
       const prefillData = location.state.prefillData;
-      
+
       // Check if this is a product analysis restart
       if (prefillData.analysisType === 'product') {
         // Switch to product tab and fill product form
@@ -118,7 +118,7 @@ const AnalysisPage: React.FC = () => {
           max_competitors: prefillData.max_competitors || 10
         });
       }
-      
+
       setIsRestart(true);
       // Clear the location state after using it
       window.history.replaceState({}, document.title);
@@ -131,7 +131,7 @@ const AnalysisPage: React.FC = () => {
   const toggleDemoMode = () => {
     // Toggle local state - demo mode is now per-request
     setDemoMode(!demoMode);
-    
+
     // Show success message
     setSuccess(`Demo mode ${!demoMode ? 'enabled' : 'disabled'} - will use ${!demoMode ? 'mock' : 'real'} data for this analysis`);
     setTimeout(() => setSuccess(null), 3000);
@@ -186,6 +186,9 @@ const AnalysisPage: React.FC = () => {
       if (!form.business_model.trim()) {
         throw new Error('Business model is required');
       }
+      if (!form.specific_requirements.trim()) {
+        throw new Error('Specific requirements are required');
+      }
 
       // Save form data to suggestions before submitting
       suggestionService.saveFormData(form);
@@ -195,11 +198,11 @@ const AnalysisPage: React.FC = () => {
         ...form,
         demo_mode: demoMode
       });
-      
+
       // Check if we have a proper request_id from the response
       if (response.data && response.data.request_id) {
         setSuccess('Analysis started successfully! Redirecting to progress tracking...');
-        
+
         // Navigate to results page with the actual request_id immediately
         setTimeout(() => {
           navigate(`/results/${response.data.request_id}`);
@@ -257,10 +260,10 @@ const AnalysisPage: React.FC = () => {
 
       // Start product comparison
       const response = await startProductComparison(productRequest);
-      
+
       if (response && response.request_id) {
         setSuccess('Product comparison started successfully! Redirecting to progress tracking...');
-        
+
         // Navigate to results page
         setTimeout(() => {
           navigate(`/results/${response.request_id}`);
@@ -318,7 +321,7 @@ const AnalysisPage: React.FC = () => {
   ];
 
   return (
-    <Box sx={{ 
+    <Box sx={{
       minHeight: '100vh',
       background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       py: { xs: 4, md: 6 },
@@ -326,22 +329,22 @@ const AnalysisPage: React.FC = () => {
     }}>
       <Container maxWidth="lg">
         <Box sx={{ textAlign: 'center', mb: { xs: 4, md: 6 } }}>
-          <Typography 
-            variant="h3" 
-            component="h1" 
-            gutterBottom 
+          <Typography
+            variant="h3"
+            component="h1"
+            gutterBottom
             fontWeight="bold"
             sx={{ color: 'white', mb: 2 }}
           >
             {isRestart ? 'Restart Competitive Analysis' : 'Start New Competitive Analysis'}
           </Typography>
-          <Typography 
-            variant="h6" 
+          <Typography
+            variant="h6"
             sx={{ color: 'rgba(255, 255, 255, 0.9)', maxWidth: '800px', mx: 'auto' }}
           >
-            {isRestart 
+            {isRestart
               ? 'Review and modify the pre-filled information, then start a new analysis'
-              : activeTab === 'company' 
+              : activeTab === 'company'
                 ? 'Provide details about your company and we\'ll analyze your competitive landscape'
                 : 'Compare your product against competitors with detailed feature and performance analysis'}
           </Typography>
@@ -350,14 +353,14 @@ const AnalysisPage: React.FC = () => {
         {/* Tab Navigation */}
         <Box sx={{ display: 'flex', justifyContent: 'center', mb: 4 }}>
           <Card sx={{ borderRadius: 2, boxShadow: 3 }}>
-            <Tabs 
-              value={activeTab} 
+            <Tabs
+              value={activeTab}
               onChange={(_, newValue) => {
                 setActiveTab(newValue);
                 setError(null);
                 setSuccess(null);
               }}
-              sx={{ 
+              sx={{
                 '& .MuiTab-root': {
                   textTransform: 'none',
                   fontWeight: 600,
@@ -366,29 +369,29 @@ const AnalysisPage: React.FC = () => {
                 }
               }}
             >
-              <Tab 
-                icon={<Building2 size={20} />} 
+              <Tab
+                icon={<Building2 size={20} />}
                 iconPosition="start"
-                label="Company Analysis" 
+                label="Company Analysis"
                 value="company"
               />
-              <Tab 
-                icon={<Package size={20} />} 
+              <Tab
+                icon={<Package size={20} />}
                 iconPosition="start"
-                label="Product Comparison" 
+                label="Product Comparison"
                 value="product"
               />
             </Tabs>
           </Card>
         </Box>
 
-      
+
       {isRestart && (
-        <Alert 
-          severity="info" 
+        <Alert
+          severity="info"
           icon={<AlertCircle size={20} />}
-          sx={{ 
-            mb: 4, 
+          sx={{
+            mb: 4,
             borderRadius: 2,
             backgroundColor: '#e3f2fd',
             border: '1px solid #2196f3',
@@ -407,11 +410,11 @@ const AnalysisPage: React.FC = () => {
         {/* Company Analysis Tab */}
         {activeTab === 'company' && (
           <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          
+
           {/* Demo Mode Toggle - Company Form */}
-          <Paper sx={{ 
-            p: 3, 
-            backgroundColor: '#f5f5f5', 
+          <Paper sx={{
+            p: 3,
+            backgroundColor: '#f5f5f5',
             border: '1px solid #e0e0e0',
             borderRadius: 2,
             display: 'flex',
@@ -438,11 +441,11 @@ const AnalysisPage: React.FC = () => {
               <Typography variant="body2" color="text.secondary">Live</Typography>
             </Box>
           </Paper>
-          
+
           {/* Alert Messages */}
           {error && (
-            <Alert 
-              severity="error" 
+            <Alert
+              severity="error"
               icon={<AlertCircle size={20} />}
               sx={{ borderRadius: 2 }}
             >
@@ -451,8 +454,8 @@ const AnalysisPage: React.FC = () => {
           )}
 
           {success && (
-            <Alert 
-              severity="success" 
+            <Alert
+              severity="success"
               icon={<CheckCircle size={20} />}
               sx={{ borderRadius: 2 }}
             >
@@ -461,16 +464,16 @@ const AnalysisPage: React.FC = () => {
           )}
 
           {/* Company Information */}
-          <Box sx={{ 
-            display: 'grid', 
-            gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, 
-            gap: 4 
+          <Box sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' },
+            gap: 4
           }}>
             <Box>
-              <Typography variant="subtitle1" fontWeight="600" sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 1.5, 
+              <Typography variant="subtitle1" fontWeight="600" sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1.5,
                 mb: 2,
                 color: 'text.primary'
               }}>
@@ -489,10 +492,10 @@ const AnalysisPage: React.FC = () => {
             </Box>
 
             <Box>
-              <Typography variant="subtitle1" fontWeight="600" sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 1.5, 
+              <Typography variant="subtitle1" fontWeight="600" sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1.5,
                 mb: 2,
                 color: 'text.primary'
               }}>
@@ -520,16 +523,16 @@ const AnalysisPage: React.FC = () => {
             </Box>
           </Box>
 
-          <Box sx={{ 
-            display: 'grid', 
-            gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, 
-            gap: 4 
+          <Box sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' },
+            gap: 4
           }}>
             <Box>
-              <Typography variant="subtitle1" fontWeight="600" sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 1.5, 
+              <Typography variant="subtitle1" fontWeight="600" sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1.5,
                 mb: 2,
                 color: 'text.primary'
               }}>
@@ -548,10 +551,10 @@ const AnalysisPage: React.FC = () => {
             </Box>
 
             <Box>
-              <Typography variant="subtitle1" fontWeight="600" sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 1.5, 
+              <Typography variant="subtitle1" fontWeight="600" sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1.5,
                 mb: 2,
                 color: 'text.primary'
               }}>
@@ -581,10 +584,10 @@ const AnalysisPage: React.FC = () => {
 
           {/* Analysis Parameters */}
           <Box>
-            <Typography variant="subtitle1" fontWeight="600" sx={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 1.5, 
+            <Typography variant="subtitle1" fontWeight="600" sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
               mb: 2,
               color: 'text.primary'
             }}>
@@ -599,8 +602,8 @@ const AnalysisPage: React.FC = () => {
               fullWidth
               inputProps={{ min: 1, max: 50 }}
               placeholder="10"
-              sx={{ 
-                '& .MuiOutlinedInput-root': { 
+              sx={{
+                '& .MuiOutlinedInput-root': {
                   borderRadius: 2,
                   maxWidth: 200
                 }
@@ -613,41 +616,42 @@ const AnalysisPage: React.FC = () => {
 
           {/* Specific Requirements */}
           <Box>
-            <Typography variant="subtitle1" fontWeight="600" sx={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 1.5, 
+            <Typography variant="subtitle1" fontWeight="600" sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
               mb: 2,
               color: 'text.primary'
             }}>
               <FileText size={18} />
-              Specific Requirements (Optional)
+              Specific Requirements *
             </Typography>
             <Box sx={{ '& .MuiInputBase-root': { borderRadius: 2 } }}>
               <AutocompleteTextarea
                 name="specific_requirements"
                 value={form.specific_requirements}
                 onChange={(value) => setForm(prev => ({ ...prev, specific_requirements: value }))}
-                placeholder="Any specific focus areas, competitor types, or analysis requirements..."
+                placeholder="Describe your product/service details, what makes you unique, specific competitor types to focus on..."
+                required
                 rows={4}
               />
             </Box>
           </Box>
 
           {/* Analysis Preview */}
-          <Paper sx={{ 
-            p: 4, 
-            backgroundColor: '#f5f5f5', 
+          <Paper sx={{
+            p: 4,
+            backgroundColor: '#f5f5f5',
             border: '1px solid #e0e0e0',
             borderRadius: 2
           }}>
             <Typography variant="h6" fontWeight="600" color="text.primary" sx={{ mb: 3 }}>
               Analysis Preview
             </Typography>
-            <Box sx={{ 
-              display: 'grid', 
-              gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, 
-              gap: 3 
+            <Box sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' },
+              gap: 3
             }}>
               <Box>
                 <Typography variant="body2" color="text.secondary">Company:</Typography>
@@ -677,9 +681,9 @@ const AnalysisPage: React.FC = () => {
           </Paper>
 
           {/* Analysis Information */}
-          <Paper sx={{ 
-            p: 4, 
-            backgroundColor: '#e3f2fd', 
+          <Paper sx={{
+            p: 4,
+            backgroundColor: '#e3f2fd',
             border: '1px solid #2196f3',
             borderRadius: 2
           }}>
@@ -688,55 +692,55 @@ const AnalysisPage: React.FC = () => {
             </Typography>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                <Box sx={{ 
-                  width: 8, 
-                  height: 8, 
-                  backgroundColor: 'primary.main', 
-                  borderRadius: '50%', 
+                <Box sx={{
+                  width: 8,
+                  height: 8,
+                  backgroundColor: 'primary.main',
+                  borderRadius: '50%',
                   mt: 1,
-                  flexShrink: 0 
+                  flexShrink: 0
                 }} />
                 <Typography variant="body2" color="primary.dark">
-                  <strong>Discovery:</strong> AI agents will identify competitors 
+                  <strong>Discovery:</strong> AI agents will identify competitors
                   across multiple data sources
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                <Box sx={{ 
-                  width: 8, 
-                  height: 8, 
-                  backgroundColor: 'primary.main', 
-                  borderRadius: '50%', 
+                <Box sx={{
+                  width: 8,
+                  height: 8,
+                  backgroundColor: 'primary.main',
+                  borderRadius: '50%',
                   mt: 1,
-                  flexShrink: 0 
+                  flexShrink: 0
                 }} />
                 <Typography variant="body2" color="primary.dark">
-                  <strong>Analysis:</strong> Comprehensive market and competitive 
+                  <strong>Analysis:</strong> Comprehensive market and competitive
                   landscape analysis
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                <Box sx={{ 
-                  width: 8, 
-                  height: 8, 
-                  backgroundColor: 'primary.main', 
-                  borderRadius: '50%', 
+                <Box sx={{
+                  width: 8,
+                  height: 8,
+                  backgroundColor: 'primary.main',
+                  borderRadius: '50%',
                   mt: 1,
-                  flexShrink: 0 
+                  flexShrink: 0
                 }} />
                 <Typography variant="body2" color="primary.dark">
-                  <strong>Insights:</strong> Strategic recommendations and 
+                  <strong>Insights:</strong> Strategic recommendations and
                   competitive positioning
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                <Box sx={{ 
-                  width: 8, 
-                  height: 8, 
-                  backgroundColor: 'primary.main', 
-                  borderRadius: '50%', 
+                <Box sx={{
+                  width: 8,
+                  height: 8,
+                  backgroundColor: 'primary.main',
+                  borderRadius: '50%',
                   mt: 1,
-                  flexShrink: 0 
+                  flexShrink: 0
                 }} />
                 <Typography variant="body2" color="primary.dark">
                   <strong>Duration:</strong> Typically completes within 15-30 minutes
@@ -752,8 +756,8 @@ const AnalysisPage: React.FC = () => {
               onClick={() => navigate('/')}
               variant="outlined"
               disabled={loading}
-              sx={{ 
-                textTransform: 'none', 
+              sx={{
+                textTransform: 'none',
                 fontWeight: 600,
                 px: 4,
                 py: 1.5,
@@ -762,14 +766,14 @@ const AnalysisPage: React.FC = () => {
             >
               Cancel
             </Button>
-            
+
             <Button
               type="submit"
               variant="contained"
               disabled={loading}
               startIcon={loading ? <Loader className="animate-spin" size={20} /> : <Search size={20} />}
-              sx={{ 
-                textTransform: 'none', 
+              sx={{
+                textTransform: 'none',
                 fontWeight: 600,
                 px: 5,
                 py: 1.5,
@@ -786,11 +790,11 @@ const AnalysisPage: React.FC = () => {
         {/* Product Comparison Tab */}
         {activeTab === 'product' && (
           <Box component="form" onSubmit={handleProductSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            
+
             {/* Demo Mode Toggle - Product Form */}
-            <Paper sx={{ 
-              p: 3, 
-              backgroundColor: '#f5f5f5', 
+            <Paper sx={{
+              p: 3,
+              backgroundColor: '#f5f5f5',
               border: '1px solid #e0e0e0',
               borderRadius: 2,
               display: 'flex',
@@ -817,11 +821,11 @@ const AnalysisPage: React.FC = () => {
                 <Typography variant="body2" color="text.secondary">Live</Typography>
               </Box>
             </Paper>
-            
+
             {/* Alert Messages */}
             {error && (
-              <Alert 
-                severity="error" 
+              <Alert
+                severity="error"
                 icon={<AlertCircle size={20} />}
                 sx={{ borderRadius: 2 }}
               >
@@ -830,8 +834,8 @@ const AnalysisPage: React.FC = () => {
             )}
 
             {success && (
-              <Alert 
-                severity="success" 
+              <Alert
+                severity="success"
                 icon={<CheckCircle size={20} />}
                 sx={{ borderRadius: 2 }}
               >
@@ -840,16 +844,16 @@ const AnalysisPage: React.FC = () => {
             )}
 
             {/* Product Information */}
-            <Box sx={{ 
-              display: 'grid', 
-              gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, 
-              gap: 4 
+            <Box sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' },
+              gap: 4
             }}>
               <Box>
-                <Typography variant="subtitle1" fontWeight="600" sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: 1.5, 
+                <Typography variant="subtitle1" fontWeight="600" sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.5,
                   mb: 2,
                   color: 'text.primary'
                 }}>
@@ -868,10 +872,10 @@ const AnalysisPage: React.FC = () => {
               </Box>
 
               <Box>
-                <Typography variant="subtitle1" fontWeight="600" sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: 1.5, 
+                <Typography variant="subtitle1" fontWeight="600" sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.5,
                   mb: 2,
                   color: 'text.primary'
                 }}>
@@ -891,16 +895,16 @@ const AnalysisPage: React.FC = () => {
             </Box>
 
             {/* Product Category and Target Market */}
-            <Box sx={{ 
-              display: 'grid', 
-              gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, 
-              gap: 4 
+            <Box sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' },
+              gap: 4
             }}>
               <Box>
-                <Typography variant="subtitle1" fontWeight="600" sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: 1.5, 
+                <Typography variant="subtitle1" fontWeight="600" sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.5,
                   mb: 2,
                   color: 'text.primary'
                 }}>
@@ -919,10 +923,10 @@ const AnalysisPage: React.FC = () => {
               </Box>
 
               <Box>
-                <Typography variant="subtitle1" fontWeight="600" sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: 1.5, 
+                <Typography variant="subtitle1" fontWeight="600" sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.5,
                   mb: 2,
                   color: 'text.primary'
                 }}>
@@ -937,8 +941,8 @@ const AnalysisPage: React.FC = () => {
                   fullWidth
                   placeholder="e.g., Small businesses, Enterprise, Developers"
                   required
-                  sx={{ 
-                    '& .MuiOutlinedInput-root': { 
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
                       borderRadius: 2
                     }
                   }}
@@ -948,20 +952,20 @@ const AnalysisPage: React.FC = () => {
 
             {/* Comparison Criteria */}
             <Box>
-              <Typography variant="subtitle1" fontWeight="600" sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 1.5, 
+              <Typography variant="subtitle1" fontWeight="600" sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1.5,
                 mb: 3,
                 color: 'text.primary'
               }}>
                 <Settings size={18} />
                 Comparison Criteria *
               </Typography>
-              
-              <Box sx={{ 
-                display: 'grid', 
-                gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, 
+
+              <Box sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' },
                 gap: 2
               }}>
                 {availableCriteria.map((criterion) => (
@@ -986,7 +990,7 @@ const AnalysisPage: React.FC = () => {
                         <Checkbox
                           checked={productForm.comparison_criteria.includes(criterion.value)}
                           onChange={() => toggleCriterion(criterion.value)}
-                          sx={{ 
+                          sx={{
                             color: 'primary.main',
                             '&.Mui-checked': {
                               color: 'primary.main',
@@ -999,7 +1003,7 @@ const AnalysisPage: React.FC = () => {
                           {criterion.label}
                         </Typography>
                       }
-                      sx={{ 
+                      sx={{
                         margin: 0,
                         width: '100%',
                         '& .MuiFormControlLabel-label': {
@@ -1010,30 +1014,30 @@ const AnalysisPage: React.FC = () => {
                   </Paper>
                 ))}
               </Box>
-              
+
               {productForm.comparison_criteria.length === 0 && (
                 <Typography variant="body2" color="error" sx={{ mt: 2 }}>
                   Please select at least one comparison criterion
                 </Typography>
               )}
-              
+
               <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
                 Selected: {productForm.comparison_criteria.length} of {availableCriteria.length} criteria
               </Typography>
             </Box>
 
             {/* Additional Settings */}
-            <Box sx={{ 
-              display: 'grid', 
-              gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, 
+            <Box sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' },
               gap: 4,
               alignItems: 'start'
             }}>
               <Box>
-                <Typography variant="subtitle1" fontWeight="600" sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: 1.5, 
+                <Typography variant="subtitle1" fontWeight="600" sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.5,
                   mb: 2,
                   color: 'text.primary'
                 }}>
@@ -1048,8 +1052,8 @@ const AnalysisPage: React.FC = () => {
                   fullWidth
                   inputProps={{ min: 1, max: 20 }}
                   placeholder="10"
-                  sx={{ 
-                    '& .MuiOutlinedInput-root': { 
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
                       borderRadius: 2,
                       maxWidth: 200
                     }
@@ -1060,8 +1064,8 @@ const AnalysisPage: React.FC = () => {
                 </Typography>
               </Box>
 
-              <Box sx={{ 
-                display: 'flex', 
+              <Box sx={{
+                display: 'flex',
                 alignItems: 'center',
                 pt: { xs: 2, md: 6 }
               }}>
@@ -1071,7 +1075,7 @@ const AnalysisPage: React.FC = () => {
                       name="include_indirect_competitors"
                       checked={productForm.include_indirect_competitors}
                       onChange={handleProductInputChange}
-                      sx={{ 
+                      sx={{
                         color: 'primary.main',
                         '&.Mui-checked': {
                           color: 'primary.main',
@@ -1091,10 +1095,10 @@ const AnalysisPage: React.FC = () => {
 
             {/* Specific Requirements */}
             <Box>
-              <Typography variant="subtitle1" fontWeight="600" sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 1.5, 
+              <Typography variant="subtitle1" fontWeight="600" sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1.5,
                 mb: 2,
                 color: 'text.primary'
               }}>
@@ -1113,19 +1117,19 @@ const AnalysisPage: React.FC = () => {
             </Box>
 
             {/* Comparison Preview */}
-            <Paper sx={{ 
-              p: 4, 
-              backgroundColor: '#f5f5f5', 
+            <Paper sx={{
+              p: 4,
+              backgroundColor: '#f5f5f5',
               border: '1px solid #e0e0e0',
               borderRadius: 2
             }}>
               <Typography variant="h6" fontWeight="600" color="text.primary" sx={{ mb: 3 }}>
                 Comparison Preview
               </Typography>
-              <Box sx={{ 
-                display: 'grid', 
-                gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, 
-                gap: 3 
+              <Box sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' },
+                gap: 3
               }}>
                 <Box>
                   <Typography variant="body2" color="text.secondary">Product:</Typography>
@@ -1155,9 +1159,9 @@ const AnalysisPage: React.FC = () => {
             </Paper>
 
             {/* What to Expect */}
-            <Paper sx={{ 
-              p: 4, 
-              backgroundColor: '#e3f2fd', 
+            <Paper sx={{
+              p: 4,
+              backgroundColor: '#e3f2fd',
               border: '1px solid #2196f3',
               borderRadius: 2
             }}>
@@ -1166,55 +1170,55 @@ const AnalysisPage: React.FC = () => {
               </Typography>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                  <Box sx={{ 
-                    width: 8, 
-                    height: 8, 
-                    backgroundColor: 'primary.main', 
-                    borderRadius: '50%', 
+                  <Box sx={{
+                    width: 8,
+                    height: 8,
+                    backgroundColor: 'primary.main',
+                    borderRadius: '50%',
                     mt: 1,
-                    flexShrink: 0 
+                    flexShrink: 0
                   }} />
                   <Typography variant="body2" color="primary.dark">
-                    <strong>Product Discovery:</strong> AI agents will identify competing products 
+                    <strong>Product Discovery:</strong> AI agents will identify competing products
                     in your category
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                  <Box sx={{ 
-                    width: 8, 
-                    height: 8, 
-                    backgroundColor: 'primary.main', 
-                    borderRadius: '50%', 
+                  <Box sx={{
+                    width: 8,
+                    height: 8,
+                    backgroundColor: 'primary.main',
+                    borderRadius: '50%',
                     mt: 1,
-                    flexShrink: 0 
+                    flexShrink: 0
                   }} />
                   <Typography variant="body2" color="primary.dark">
-                    <strong>Feature Analysis:</strong> Detailed comparison of features, 
+                    <strong>Feature Analysis:</strong> Detailed comparison of features,
                     pricing, and capabilities
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                  <Box sx={{ 
-                    width: 8, 
-                    height: 8, 
-                    backgroundColor: 'primary.main', 
-                    borderRadius: '50%', 
+                  <Box sx={{
+                    width: 8,
+                    height: 8,
+                    backgroundColor: 'primary.main',
+                    borderRadius: '50%',
                     mt: 1,
-                    flexShrink: 0 
+                    flexShrink: 0
                   }} />
                   <Typography variant="body2" color="primary.dark">
-                    <strong>Performance Review:</strong> User reviews, ratings, and 
+                    <strong>Performance Review:</strong> User reviews, ratings, and
                     performance benchmarks
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                  <Box sx={{ 
-                    width: 8, 
-                    height: 8, 
-                    backgroundColor: 'primary.main', 
-                    borderRadius: '50%', 
+                  <Box sx={{
+                    width: 8,
+                    height: 8,
+                    backgroundColor: 'primary.main',
+                    borderRadius: '50%',
                     mt: 1,
-                    flexShrink: 0 
+                    flexShrink: 0
                   }} />
                   <Typography variant="body2" color="primary.dark">
                     <strong>Duration:</strong> Typically completes within 10-20 minutes
@@ -1230,8 +1234,8 @@ const AnalysisPage: React.FC = () => {
                 onClick={() => navigate('/')}
                 variant="outlined"
                 disabled={loading}
-                sx={{ 
-                  textTransform: 'none', 
+                sx={{
+                  textTransform: 'none',
                   fontWeight: 600,
                   px: 4,
                   py: 1.5,
@@ -1240,14 +1244,14 @@ const AnalysisPage: React.FC = () => {
               >
                 Cancel
               </Button>
-              
+
               <Button
                 type="submit"
                 variant="contained"
                 disabled={loading || productForm.comparison_criteria.length === 0}
                 startIcon={loading ? <Loader className="animate-spin" size={20} /> : <Search size={20} />}
-                sx={{ 
-                  textTransform: 'none', 
+                sx={{
+                  textTransform: 'none',
                   fontWeight: 600,
                   px: 5,
                   py: 1.5,

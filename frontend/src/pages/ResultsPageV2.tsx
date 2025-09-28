@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, AlertCircle, RefreshCw, Bug, X, Loader, AlertTriangle, Settings, RotateCcw } from 'lucide-react';
+import { ArrowLeft, AlertCircle, RefreshCw, Bug, X, Loader, AlertTriangle, Settings, RotateCcw, FileText } from 'lucide-react';
 import {
   Box,
   Container,
@@ -452,6 +452,32 @@ const ResultsPageV2: React.FC = () => {
           </CardContent>
         </Card>
 
+        {/* Analysis Context Banner */}
+        {analysisResult.specific_requirements && (
+          <Card sx={{ borderRadius: 2, boxShadow: 2, mb: { xs: 3, md: 4 }, backgroundColor: '#f8f9fa', border: '1px solid #e9ecef' }}>
+            <CardContent sx={{ p: { xs: 2, md: 3 } }}>
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                <FileText size={20} color="#6c757d" style={{ marginTop: '2px', flexShrink: 0 }} />
+                <Box>
+                  <Typography variant="subtitle2" fontWeight="600" color="text.secondary" sx={{ mb: 1 }}>
+                    Analysis Focus
+                  </Typography>
+                  <Typography variant="body2" color="text.primary" sx={{ lineHeight: 1.6 }}>
+                    {analysisResult.specific_requirements}
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1.5, flexWrap: 'wrap' }}>
+                    <Typography variant="caption" color="text.secondary">
+                      <strong>Market:</strong> {analysisResult.target_market}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      <strong>Model:</strong> {analysisResult.business_model}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Human Review Notice - Show when current_stage is 'human_review' and not completed */}
         {analysisResult.current_stage === 'human_review' && analysisResult.status !== 'completed' && !forceShowReview && (
