@@ -147,11 +147,6 @@ Create `backend/.env` with the following configuration:
 OPENAI_API_KEY=your_openai_api_key_here
 TAVILY_API_KEY=your_tavily_api_key_here
 
-# Database Configuration
-MONGODB_URI=mongodb://admin:admin123@localhost:27017/competitor_analysis?authSource=admin
-REDIS_HOST=localhost
-REDIS_PORT=6379
-
 # Application Settings
 ENVIRONMENT=development
 LOG_LEVEL=info
@@ -251,16 +246,24 @@ make redis-cli     # Redis CLI
 
 ## 🔄 Workflow
 
-![How It Works](docs/how_it_work.png)
+![LangGraph Workflow](docs/graph_mermaid.png)
 
-1. **Client Onboarding** - Define objectives and scope
-2. **Competitor Discovery** - AI identifies relevant competitors
-3. **Data Collection** - Parallel gathering from multiple sources
-4. **Data Validation** - Quality checks and verification
-5. **Analysis** - Multiple analytical frameworks applied
-6. **Insight Generation** - Synthesis and recommendations
-7. **Report Delivery** - Custom reports and dashboards
-8. **Continuous Monitoring** - Ongoing tracking (optional)
+**Actual LangGraph Implementation:**
+
+1. **Search Phase** - Tavily-powered competitor discovery and data collection with intelligent filtering
+2. **Analysis Phase** - Azure OpenAI competitive analysis with SWOT, positioning, and data enrichment
+3. **Quality Assurance** - LLM-powered data validation and relevance verification
+4. **Human Review** - Optional interruption point for quality issues requiring human decision
+5. **Report Generation** - Automated report synthesis with market insights and recommendations
+6. **Completion** - Analysis marked complete with persistent checkpoint storage
+
+**Key Features:**
+- **Persistent Interrupts**: LangGraph checkpoints enable human review workflows that can resume exactly where they left off
+- **Conditional Routing**: Smart workflow routing based on data quality and analysis confidence
+- **Error Recovery**: Built-in retry mechanisms and fallback strategies
+- **Real-time Updates**: WebSocket progress tracking throughout the workflow
+
+![How It Works](docs/how_it_work.png)
 
 ## 📈 Performance Metrics
 - Analysis completion: < 4 hours
