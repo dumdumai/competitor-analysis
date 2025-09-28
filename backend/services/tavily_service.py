@@ -269,7 +269,7 @@ class TavilyService:
     async def search_market_analysis(self,
                                    industry: str,
                                    target_market: str = "",
-                                   year: str = "2024",
+                                   year: str = "2025",
                                    demo_mode: bool = False) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """Search for market analysis and industry reports"""
 
@@ -353,7 +353,7 @@ class TavilyService:
                 f"{specific_requirements} competitors {target_market}",
                 f"{specific_requirements} {industry} companies {target_market}",
                 f"companies like {company_name} {specific_requirements} {target_market}",
-                f"{specific_requirements} market leaders {target_market} 2024"
+                f"{specific_requirements} market leaders {target_market} 2025"
             ])
 
         # Priority 2: Combine user requirements with business context
@@ -367,7 +367,7 @@ class TavilyService:
         if not specific_requirements:
             comprehensive_queries.extend([
                 f"{business_model} {industry} market leaders {target_market} competitive landscape",
-                f"leading {business_model} {industry} companies {target_market} analysis 2024"
+                f"leading {business_model} {industry} companies {target_market} analysis 2025"
             ])
 
         # Priority 4: Company-specific competitor searches
@@ -625,7 +625,7 @@ class TavilyService:
     def _generate_market_analysis_queries(self,
                                         industry: str,
                                         target_market: str = "",
-                                        year: str = "2024") -> List[str]:
+                                        year: str = "2025") -> List[str]:
         """Generate search queries for market analysis"""
         base_queries = [
             f"{industry} market analysis {year}",
@@ -722,7 +722,7 @@ class TavilyService:
         # Add a few industry-specific results
         demo_results.extend([
             {
-                "title": f"{industry} Market Analysis 2024",
+                "title": f"{industry} Market Analysis 2025",
                 "url": f"https://marketresearch.com/{industry.lower()}-analysis",
                 "content": f"Comprehensive analysis of the {industry} market in {target_market}. Market size, trends, and competitive landscape overview.",
                 "score": 0.9,

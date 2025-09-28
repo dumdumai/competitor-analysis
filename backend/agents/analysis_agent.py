@@ -91,7 +91,7 @@ class AnalysisAgent:
 
             # Gather market data using Tavily
             market_queries = [
-                f"{context.industry} market size {context.target_market} 2024",
+                f"{context.industry} market size {context.target_market} 2025",
                 f"{context.industry} market trends {context.target_market}",
                 f"{context.industry} industry analysis {context.target_market}"
             ]
