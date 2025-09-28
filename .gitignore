@@ -110,5 +110,33 @@ reports/
 !package.json
 !tsconfig.json
 
+# Secret detection
+.secrets.baseline
+gitleaks-report.json
+
+# API keys and secrets
+secrets.json
+config/secrets.yaml
+.secrets
+*.pem
+*.key
+id_rsa
+id_ecdsa
+id_ed25519
+
+# Terraform sensitive files
+terraform/terraform.tfvars
+*.tfvars
+terraform.tfstate
+terraform.tfstate.*
+.terraform/
+*.auto.tfvars
+.terraform.lock.hcl
+
+# AWS credentials
+.aws/
+credentials
+config
+
 # Claude Code specific files
 CLAUDE.md

@@ -1,5 +1,7 @@
 # Competitor Analysis System
 
+![Head Banner](docs/head_banner.png)
+
 > Multi-agent AI-powered competitor analysis system built with LangGraph orchestration
 
 An advanced AI-powered competitor analysis platform that automates the entire competitive intelligence workflow using specialized agents for discovery, data collection, analysis, and reporting.
@@ -7,23 +9,26 @@ An advanced AI-powered competitor analysis platform that automates the entire co
 ## 🚀 Features
 
 - **Multi-Agent Architecture**: Specialized agents for different aspects of competitive analysis
-- **Intelligent Discovery**: Automated competitor identification using Tavily search
-- **Deep Analysis**: SWOT analysis, market positioning, and sentiment analysis
-- **Quality Assurance**: Built-in data validation and quality scoring
+- **Intelligent Discovery**: Automated competitor identification using Tavily's web intelligence platform
+- **Market Research**: Real-time industry analysis and competitive landscape mapping via Tavily API
+- **Deep Analysis**: SWOT analysis, market positioning, and sentiment analysis powered by Azure OpenAI
+- **Quality Assurance**: Built-in data validation and relevance filtering with quality scoring
 - **Real-time Reporting**: Dynamic report generation with actionable insights
 - **Modern Tech Stack**: FastAPI + React with Python 3.12 and uvicorn
 - **Scalable Design**: Docker-based deployment with horizontal scaling support
 
 ## 🏗️ Architecture
 
+![LangGraph Mermaid Diagram](docs/graph_mermaid.png)
+
 ### Multi-Agent System
 Built on **LangGraph** with specialized agents:
 
-- **SearchAgent**: Tavily-powered competitor discovery and data collection
-- **AnalysisAgent**: LLM-powered competitive analysis (SWOT, positioning, sentiment)
-- **QualityAgent**: Data validation and quality scoring
-- **ReportAgent**: Report generation and delivery
-- **CompetitorAnalysisCoordinator**: Main orchestrator managing agent workflow
+- **SearchAgent**: Tavily-powered competitor discovery and data collection with intelligent relevance filtering
+- **AnalysisAgent**: Azure OpenAI-powered competitive analysis (SWOT, positioning, sentiment)
+- **QualityAgent**: Data validation and quality scoring with relevance verification
+- **ReportAgent**: Report generation and delivery with market insights
+- **CompetitorAnalysisCoordinator**: Main orchestrator managing agent workflow and checkpoints
 
 *Note: Unused agent files have been removed to streamline the codebase. Only the active agents listed above are included.*
 
@@ -32,10 +37,11 @@ Built on **LangGraph** with specialized agents:
 **Backend:**
 - FastAPI with Python 3.12+ and uvicorn
 - LangGraph for agent workflow management
-- OpenAI GPT-4 for analysis
-- Tavily API for web intelligence
-- MongoDB for data persistence
-- Redis for caching
+- Azure OpenAI GPT-4 for competitive analysis and data structuring
+- Tavily API for web intelligence, competitor discovery, and market research
+- MongoDB for analysis results and business data persistence
+- PostgreSQL for LangGraph checkpoint persistence
+- Redis for session management and caching
 
 **Frontend:**
 - React 18 + TypeScript
@@ -44,9 +50,12 @@ Built on **LangGraph** with specialized agents:
 - Data visualization components
 
 **Infrastructure:**
-- Docker & Docker Compose
-- Uvicorn ASGI server
+- Docker & Docker Compose for containerization
+- Uvicorn ASGI server for high-performance API serving
+- AWS Elastic Beanstalk for cloud deployment
 - Modern Python project structure with pyproject.toml
+
+*For detailed infrastructure information, see [INFRASTRUCTURE.md](./INFRASTRUCTURE.md)*
 
 ## 📁 Project Structure
 ```
@@ -156,8 +165,14 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 
 ### API Keys Setup
 
-1. **OpenAI API Key**: Get from [OpenAI Platform](https://platform.openai.com/api-keys)
-2. **Tavily API Key**: Get from [Tavily API](https://tavily.com/)
+1. **Azure OpenAI API Key**: Get from [Azure OpenAI Service](https://azure.microsoft.com/en-us/products/ai-services/openai-service)
+2. **Tavily API Key**: Get from [Tavily API](https://tavily.com/) - Required for web intelligence and competitor discovery
+
+**Tavily API Usage:**
+- Competitor discovery through intelligent web search
+- Market research and industry analysis
+- Real-time competitive intelligence gathering
+- Content relevance scoring and validation
 
 ## 🌐 Service Endpoints
 
@@ -236,6 +251,8 @@ make redis-cli     # Redis CLI
 
 ## 🔄 Workflow
 
+![How It Works](docs/how_it_work.png)
+
 1. **Client Onboarding** - Define objectives and scope
 2. **Competitor Discovery** - AI identifies relevant competitors
 3. **Data Collection** - Parallel gathering from multiple sources
@@ -258,9 +275,9 @@ Please read CONTRIBUTING.md for details on our code of conduct and the process f
 This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## 🙏 Acknowledgments
-- LangGraph for orchestration framework
-- Tavily for intelligent web search
-- OpenAI for GPT-4 capabilities
+- LangGraph for multi-agent orchestration framework
+- Tavily for intelligent web search and competitive intelligence platform
+- Azure OpenAI for GPT-4 analysis capabilities
 
 ## 📞 Support
 For support, email support@competitoranalysis.ai or open an issue in the repository.

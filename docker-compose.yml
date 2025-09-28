@@ -60,6 +60,7 @@ services:
       MONGODB_URI: mongodb://admin:admin123@mongodb:27017/competitor_analysis?authSource=admin
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      REDIS_URL: redis://redis:6379
       POSTGRES_URI: postgresql://postgres:postgres@postgres:5432/competitor_analysis
       PYTHONPATH: /home/appuser/.local/lib/python3.11/site-packages:/app/backend
     env_file:

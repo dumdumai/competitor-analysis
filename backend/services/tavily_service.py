@@ -13,12 +13,12 @@ load_dotenv(dotenv_path='/app/backend/.env')
 
 class TavilyService:
     """Service for handling Tavily API interactions"""
-    
+
     def __init__(self):
         # Initialize API client (not demo mode - that's per-request)
         self.api_key = os.getenv("TAVILY_API_KEY")
         self.client = None
-        
+
         if self.api_key:
             try:
                 self.client = TavilyClient(api_key=self.api_key)
@@ -28,21 +28,21 @@ class TavilyService:
                 self.client = None
         else:
             logger.warning("TAVILY_API_KEY not provided - will use demo mode when requested")
-        
+
         self.max_results = int(os.getenv("TAVILY_MAX_RESULTS", "10"))
         self.search_depth = os.getenv("TAVILY_SEARCH_DEPTH", "advanced")
         self.include_domains = self._parse_domains(os.getenv("TAVILY_INCLUDE_DOMAINS", ""))
         self.exclude_domains = self._parse_domains(os.getenv("TAVILY_EXCLUDE_DOMAINS", ""))
-    
+
     def _parse_domains(self, domains_str: str) -> List[str]:
         """Parse comma-separated domains string into list"""
-        if not domains_str:
+        if not domains_str or domains_str.strip() == "[]":
             return []
         return [domain.strip() for domain in domains_str.split(",") if domain.strip()]
-    
-    async def search_competitors(self, 
-                               company_name: str, 
-                               industry: str, 
+
+    async def search_competitors(self,
+                               company_name: str,
+                               industry: str,
                                target_market: str = "",
                                business_model: str = "",
                                specific_requirements: str = "",
@@ -50,7 +50,7 @@ class TavilyService:
                                demo_mode: bool = False,
                                max_competitors: int = 10) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """Search for competitors using various search strategies"""
-        
+
         # Use demo mode if requested or client unavailable
         if demo_mode or not self.client:
             logger.info(f"Using demo mode for competitor search (demo_mode={demo_mode}, client_available={self.client is not None})")
@@ -70,23 +70,23 @@ class TavilyService:
                 "duration_ms": 500
             }
             return results, [search_log]
-        
+
         try:
             search_queries = self._generate_competitor_search_queries(
                 company_name, industry, target_market, business_model, specific_requirements, additional_keywords
             )
-            
+
             # LIMIT QUERIES TO AVOID RESOURCE WASTE
             # Only use first 2 queries for efficiency (should give us enough results)
             search_queries = search_queries[:2]
-            
+
             all_results = []
             search_logs = []
-            
+
             for query in search_queries:
                 logger.info(f"Searching with query: {query}")
                 start_time = time.time()
-                
+
                 search_log = {
                     "search_type": "competitor_search",
                     "query": query,
@@ -97,7 +97,7 @@ class TavilyService:
                         "exclude_domains": self.exclude_domains
                     }
                 }
-                
+
                 try:
                     # Use asyncio to make the sync call non-blocking
                     results = await asyncio.to_thread(
@@ -109,15 +109,15 @@ class TavilyService:
                         exclude_domains=self.exclude_domains,
                         include_raw_content=True
                     )
-                    
+
                     duration_ms = int((time.time() - start_time) * 1000)
-                    
+
                     if results and "results" in results:
                         for result in results["results"]:
                             result["search_query"] = query
                             result["search_type"] = "competitor_search"
                         all_results.extend(results["results"])
-                        
+
                         search_log["results_count"] = len(results["results"])
                         search_log["results"] = results["results"]
                         search_log["duration_ms"] = duration_ms
@@ -127,12 +127,12 @@ class TavilyService:
                         search_log["results"] = []
                         search_log["duration_ms"] = duration_ms
                         search_log["processing_notes"] = "No results returned"
-                    
+
                     search_logs.append(search_log)
-                    
+
                     # Add delay to respect rate limits
                     await asyncio.sleep(0.5)
-                    
+
                 except Exception as e:
                     logger.warning(f"Search failed for query '{query}': {e}")
                     search_log["error"] = str(e)
@@ -141,17 +141,17 @@ class TavilyService:
                     search_log["duration_ms"] = int((time.time() - start_time) * 1000)
                     search_logs.append(search_log)
                     continue
-            
+
             # Remove duplicates based on URL
             unique_results = {}
             for result in all_results:
                 url = result.get("url", "")
                 if url and url not in unique_results:
                     unique_results[url] = result
-            
+
             logger.info(f"Found {len(unique_results)} unique results for competitor search")
             return list(unique_results.values()), search_logs
-            
+
         except Exception as e:
             logger.error(f"Error in competitor search: {e}")
             error_log = {
@@ -164,10 +164,10 @@ class TavilyService:
                 "processing_notes": "Search operation failed"
             }
             return [], [error_log]
-    
+
     async def search_company_details(self, company_name: str, demo_mode: bool = False) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """Search for detailed information about a specific company"""
-        
+
         # Use demo mode if requested or client unavailable
         if demo_mode or not self.client:
             logger.info(f"Using demo mode for company details (demo_mode={demo_mode}, client_available={self.client is not None})")
@@ -182,17 +182,17 @@ class TavilyService:
                 "duration_ms": 300
             }
             return results, [search_log]
-        
+
         try:
             search_queries = self._generate_company_detail_queries(company_name)
-            
+
             all_results = []
             search_logs = []
-            
+
             for query in search_queries:
                 logger.info(f"Searching company details with query: {query}")
                 start_time = time.time()
-                
+
                 search_log = {
                     "search_type": "company_details",
                     "query": query,
@@ -201,7 +201,7 @@ class TavilyService:
                         "search_depth": self.search_depth
                     }
                 }
-                
+
                 try:
                     results = await asyncio.to_thread(
                         self.client.search,
@@ -212,15 +212,15 @@ class TavilyService:
                         exclude_domains=self.exclude_domains,
                         include_raw_content=True
                     )
-                    
+
                     duration_ms = int((time.time() - start_time) * 1000)
-                    
+
                     if results and "results" in results:
                         for result in results["results"]:
                             result["search_query"] = query
                             result["search_type"] = "company_details"
                         all_results.extend(results["results"])
-                        
+
                         search_log["results_count"] = len(results["results"])
                         search_log["results"] = results["results"]
                         search_log["duration_ms"] = duration_ms
@@ -230,10 +230,10 @@ class TavilyService:
                         search_log["results"] = []
                         search_log["duration_ms"] = duration_ms
                         search_log["processing_notes"] = "No company details found"
-                    
+
                     search_logs.append(search_log)
                     await asyncio.sleep(0.5)
-                    
+
                 except Exception as e:
                     logger.warning(f"Company detail search failed for query '{query}': {e}")
                     search_log["error"] = str(e)
@@ -242,17 +242,17 @@ class TavilyService:
                     search_log["duration_ms"] = int((time.time() - start_time) * 1000)
                     search_logs.append(search_log)
                     continue
-            
+
             # Remove duplicates
             unique_results = {}
             for result in all_results:
                 url = result.get("url", "")
                 if url and url not in unique_results:
                     unique_results[url] = result
-            
+
             logger.info(f"Found {len(unique_results)} unique results for {company_name}")
             return list(unique_results.values()), search_logs
-            
+
         except Exception as e:
             logger.error(f"Error searching company details for {company_name}: {e}")
             error_log = {
@@ -265,14 +265,14 @@ class TavilyService:
                 "processing_notes": "Company details search failed"
             }
             return [], [error_log]
-    
-    async def search_market_analysis(self, 
-                                   industry: str, 
+
+    async def search_market_analysis(self,
+                                   industry: str,
                                    target_market: str = "",
                                    year: str = "2024",
                                    demo_mode: bool = False) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """Search for market analysis and industry reports"""
-        
+
         # Use demo mode if requested or client unavailable
         if demo_mode or not self.client:
             logger.info(f"Using demo mode for market analysis (demo_mode={demo_mode}, client_available={self.client is not None})")
@@ -287,15 +287,15 @@ class TavilyService:
                 "duration_ms": 400
             }
             return results, [search_log]
-        
+
         try:
             search_queries = self._generate_market_analysis_queries(industry, target_market, year)
-            
+
             all_results = []
-            
+
             for query in search_queries:
                 logger.info(f"Searching market analysis with query: {query}")
-                
+
                 try:
                     results = await asyncio.to_thread(
                         self.client.search,
@@ -306,49 +306,49 @@ class TavilyService:
                         exclude_domains=self.exclude_domains,
                         include_raw_content=True
                     )
-                    
+
                     if results and "results" in results:
                         for result in results["results"]:
                             result["search_query"] = query
                             result["search_type"] = "market_analysis"
                         all_results.extend(results["results"])
-                    
+
                     await asyncio.sleep(0.5)
-                    
+
                 except Exception as e:
                     logger.warning(f"Market analysis search failed for query '{query}': {e}")
                     continue
-            
+
             # Remove duplicates
             unique_results = {}
             for result in all_results:
                 url = result.get("url", "")
                 if url and url not in unique_results:
                     unique_results[url] = result
-            
+
             logger.info(f"Found {len(unique_results)} unique market analysis results")
             return list(unique_results.values())
-            
+
         except Exception as e:
             logger.error(f"Error in market analysis search: {e}")
             return []
-    
-    def _generate_competitor_search_queries(self, 
-                                          company_name: str, 
-                                          industry: str, 
+
+    def _generate_competitor_search_queries(self,
+                                          company_name: str,
+                                          industry: str,
                                           target_market: str = "",
                                           business_model: str = "",
                                           specific_requirements: str = "",
                                           additional_keywords: List[str] = None) -> List[str]:
         """Generate comprehensive, focused search queries combining all context"""
         additional_keywords = additional_keywords or []
-        
+
         # Extract key technical/functional terms from requirements
         requirement_terms = self._extract_key_terms_from_requirements(specific_requirements)
-        
+
         # Build comprehensive search queries that combine all context
         comprehensive_queries = []
-        
+
         # Priority 1: Highly specific queries combining all available context
         if business_model and requirement_terms:
             comprehensive_queries.extend([
@@ -356,33 +356,33 @@ class TavilyService:
                 f"{industry} {business_model} companies {' '.join(requirement_terms)} competitive analysis",
                 f"top {' '.join(requirement_terms)} {industry} {business_model} providers {target_market} 2024"
             ])
-        
+
         # Priority 2: Business model + industry + market specific
         if business_model:
             comprehensive_queries.extend([
                 f"{business_model} {industry} market leaders {target_market} competitive landscape",
                 f"leading {business_model} {industry} companies {target_market} analysis 2024"
             ])
-        
+
         # Priority 3: Requirement-driven competitor searches
         if requirement_terms:
             comprehensive_queries.extend([
                 f"{' '.join(requirement_terms)} {industry} companies market share analysis",
                 f"best {' '.join(requirement_terms)} {industry} solutions {target_market}"
             ])
-        
+
         # Priority 4: Direct competitive analysis queries
         comprehensive_queries.extend([
             f"{company_name} competitors {industry} {business_model} {target_market}",
             f"{industry} competitive intelligence {business_model} market analysis 2024"
         ])
-        
+
         # Priority 5: Alternative and comparison queries (most targeted)
         if business_model and requirement_terms:
             comprehensive_queries.append(
                 f"alternatives to {company_name} {' '.join(requirement_terms)} {industry} {business_model}"
             )
-        
+
         # Filter out empty or too generic queries
         filtered_queries = []
         for query in comprehensive_queries:
@@ -390,10 +390,10 @@ class TavilyService:
             clean_query = ' '.join(query.split())
             if len(clean_query.split()) >= 4:  # Ensure queries have enough specificity
                 filtered_queries.append(clean_query)
-        
+
         # Return top 6 most specific queries to avoid rate limits while maintaining quality
         return filtered_queries[:6]
-    
+
     async def search_products(self,
                              product_name: str,
                              category: str,
@@ -401,7 +401,7 @@ class TavilyService:
                              comparison_criteria: List[str] = None,
                              demo_mode: bool = False) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """Search for competing products"""
-        
+
         # Use demo mode if requested or client unavailable
         if demo_mode or not self.client:
             logger.info(f"Using demo mode for product search (demo_mode={demo_mode}, client_available={self.client is not None})")
@@ -421,20 +421,20 @@ class TavilyService:
                 "duration_ms": 500
             }
             return results, [search_log]
-        
+
         try:
             # Generate product-specific search queries
             search_queries = self._generate_product_search_queries(
                 product_name, category, target_market, comparison_criteria
             )
-            
+
             all_results = []
             search_logs = []
-            
+
             for query in search_queries:
                 logger.info(f"Searching for products with query: {query}")
                 start_time = time.time()
-                
+
                 search_log = {
                     "search_type": "product_search",
                     "query": query,
@@ -443,7 +443,7 @@ class TavilyService:
                         "search_depth": self.search_depth
                     }
                 }
-                
+
                 try:
                     results = await asyncio.to_thread(
                         self.client.search,
@@ -451,31 +451,31 @@ class TavilyService:
                         max_results=self.max_results,
                         search_depth=self.search_depth
                     )
-                    
+
                     if results and 'results' in results:
                         all_results.extend(results['results'])
                         search_log["results_count"] = len(results['results'])
                         search_log["results"] = results['results']
-                    
+
                 except Exception as e:
                     logger.error(f"Search query failed: {e}")
                     search_log["error"] = str(e)
-                
+
                 search_log["duration_ms"] = int((time.time() - start_time) * 1000)
                 search_logs.append(search_log)
-                
+
                 # Rate limit protection
                 await asyncio.sleep(0.5)
-            
+
             return all_results, search_logs
-            
+
         except Exception as e:
             logger.error(f"Product search failed: {e}")
             return [], [{
                 "search_type": "product_search",
                 "error": str(e)
             }]
-    
+
     async def search_product_details(self,
                                     product_name: str,
                                     include_features: bool = True,
@@ -483,7 +483,7 @@ class TavilyService:
                                     include_reviews: bool = True,
                                     demo_mode: bool = False) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """Search for detailed product information"""
-        
+
         if demo_mode or not self.client:
             logger.info(f"Using demo mode for product details (demo_mode={demo_mode}, client_available={self.client is not None})")
             results = await self._get_demo_product_details(product_name)
@@ -496,7 +496,7 @@ class TavilyService:
                 "duration_ms": 300
             }
             return results, [search_log]
-        
+
         try:
             queries = []
             if include_features:
@@ -505,14 +505,14 @@ class TavilyService:
                 queries.append(f"{product_name} pricing plans cost subscription")
             if include_reviews:
                 queries.append(f"{product_name} reviews ratings user feedback")
-            
+
             all_results = []
             search_logs = []
-            
+
             for query in queries:
                 logger.info(f"Searching product details: {query}")
                 start_time = time.time()
-                
+
                 search_log = {
                     "search_type": "product_details",
                     "query": query,
@@ -521,7 +521,7 @@ class TavilyService:
                         "search_depth": self.search_depth
                     }
                 }
-                
+
                 try:
                     results = await asyncio.to_thread(
                         self.client.search,
@@ -529,30 +529,30 @@ class TavilyService:
                         max_results=self.max_results,
                         search_depth=self.search_depth
                     )
-                    
+
                     if results and 'results' in results:
                         all_results.extend(results['results'])
                         search_log["results_count"] = len(results['results'])
                         search_log["results"] = results['results']
-                    
+
                 except Exception as e:
                     logger.error(f"Product details search failed: {e}")
                     search_log["error"] = str(e)
-                
+
                 search_log["duration_ms"] = int((time.time() - start_time) * 1000)
                 search_logs.append(search_log)
-                
+
                 await asyncio.sleep(0.5)
-            
+
             return all_results, search_logs
-            
+
         except Exception as e:
             logger.error(f"Product details search failed: {e}")
             return [], [{
                 "search_type": "product_details",
                 "error": str(e)
             }]
-    
+
     def _generate_product_search_queries(self,
                                         product_name: str,
                                         category: str,
@@ -565,16 +565,16 @@ class TavilyService:
             f"{product_name} competitors comparison {category}",
             f"top {category} tools similar to {product_name}"
         ]
-        
+
         if target_market:
             queries.append(f"{category} solutions for {target_market} {product_name} alternatives")
-        
+
         if comparison_criteria:
             for criterion in comparison_criteria[:2]:  # Limit to avoid too many queries
                 queries.append(f"{product_name} vs competitors {criterion} {category}")
-        
+
         return queries[:5]  # Limit total queries
-    
+
     async def _get_demo_product_data(self, product_name: str, category: str) -> List[Dict[str, Any]]:
         """Return demo product data for testing"""
         demo_products = [
@@ -598,7 +598,7 @@ class TavilyService:
             }
         ]
         return demo_products
-    
+
     async def _get_demo_product_details(self, product_name: str) -> List[Dict[str, Any]]:
         """Return demo product details for testing"""
         return [
@@ -618,19 +618,19 @@ class TavilyService:
                 "score": 0.90
             }
         ]
-    
+
     def _extract_key_terms_from_requirements(self, specific_requirements: str) -> List[str]:
         """Extract key technical and functional terms from requirements"""
         if not specific_requirements:
             return []
-        
+
         req_lower = specific_requirements.lower()
         key_terms = []
-        
+
         # Technology terms
         tech_terms = {
             'ai': 'AI-powered',
-            'artificial intelligence': 'AI-powered', 
+            'artificial intelligence': 'AI-powered',
             'machine learning': 'ML-enabled',
             'automation': 'automation',
             'cloud': 'cloud-based',
@@ -646,15 +646,15 @@ class TavilyService:
             'erp': 'ERP',
             'api': 'API-enabled'
         }
-        
+
         # Find matching terms
         for term, normalized in tech_terms.items():
             if term in req_lower:
                 if normalized not in key_terms:
                     key_terms.append(normalized)
-        
+
         return key_terms[:3]  # Limit to top 3 most relevant terms
-    
+
     def _generate_company_detail_queries(self, company_name: str) -> List[str]:
         """Generate search queries for company details - LIMITED to reduce API calls"""
         # REDUCED from 8 to 2 queries to save Tavily API resources
@@ -663,9 +663,9 @@ class TavilyService:
             f"{company_name} company profile overview business model products",
             f"{company_name} funding revenue recent news competitors"
         ]
-    
-    def _generate_market_analysis_queries(self, 
-                                        industry: str, 
+
+    def _generate_market_analysis_queries(self,
+                                        industry: str,
                                         target_market: str = "",
                                         year: str = "2024") -> List[str]:
         """Generate search queries for market analysis"""
@@ -676,30 +676,30 @@ class TavilyService:
             f"{industry} market research {year}",
             f"{industry} industry outlook {year}"
         ]
-        
+
         if target_market:
             base_queries.extend([
                 f"{industry} market analysis {target_market} {year}",
                 f"{target_market} {industry} industry report {year}",
                 f"{industry} market size {target_market} {year}"
             ])
-        
+
         return base_queries
-    
-    async def search_with_custom_query(self, 
-                                     query: str, 
+
+    async def search_with_custom_query(self,
+                                     query: str,
                                      search_type: str = "custom",
                                      demo_mode: bool = False) -> List[Dict[str, Any]]:
         """Perform a custom search with the given query"""
-        
+
         # Use demo mode if requested or client unavailable
         if demo_mode or not self.client:
             logger.info(f"Using demo mode for custom search (demo_mode={demo_mode}, client_available={self.client is not None})")
             return await self._get_demo_custom_search(query, search_type)
-        
+
         try:
             logger.info(f"Custom search with query: {query}")
-            
+
             results = await asyncio.to_thread(
                 self.client.search,
                 query=query,
@@ -709,22 +709,22 @@ class TavilyService:
                 exclude_domains=self.exclude_domains,
                 include_raw_content=True
             )
-            
+
             if results and "results" in results:
                 for result in results["results"]:
                     result["search_query"] = query
                     result["search_type"] = search_type
                 return results["results"]
-            
+
             return []
-            
+
         except Exception as e:
             logger.error(f"Error in custom search '{query}': {e}")
             return []
-    
+
     async def _get_demo_competitor_data(self, company_name: str, industry: str, target_market: str) -> List[Dict[str, Any]]:
         """Generate demo competitor data when real API is unavailable"""
-        
+
         # Industry-specific competitor templates
         competitor_templates = {
             "Technology": [
@@ -743,12 +743,12 @@ class TavilyService:
                 "Pearson", "McGraw Hill", "Cengage Learning", "Blackboard", "Canvas", "Coursera", "edX", "Udemy", "Khan Academy", "Duolingo"
             ]
         }
-        
+
         # Get relevant competitors for the industry
         competitors = competitor_templates.get(industry, [
             "GlobalCorp", "InnovateTech", "MarketLeader", "IndustryGiant", "CompetitorOne"
         ])
-        
+
         # Generate demo data
         demo_results = []
         for i, competitor in enumerate(competitors[:6]):  # Limit to 6 competitors
@@ -760,7 +760,7 @@ class TavilyService:
                 "search_query": f"{company_name} competitors {industry}",
                 "search_type": "demo_mode"
             })
-        
+
         # Add a few industry-specific results
         demo_results.extend([
             {
@@ -780,17 +780,17 @@ class TavilyService:
                 "search_type": "demo_mode"
             }
         ])
-        
+
         logger.info(f"Generated {len(demo_results)} demo competitor records for {industry} industry")
-        
+
         # Simulate network delay
         await asyncio.sleep(0.5)
-        
+
         return demo_results
-    
+
     async def _get_demo_market_data(self, industry: str, target_market: str, year: str) -> List[Dict[str, Any]]:
         """Generate demo market analysis data when real API is unavailable"""
-        
+
         demo_results = [
             {
                 "title": f"{industry} Market Analysis {year} - Industry Report",
@@ -825,17 +825,17 @@ class TavilyService:
                 "search_type": "demo_market_analysis"
             }
         ]
-        
+
         logger.info(f"Generated {len(demo_results)} demo market analysis records for {industry} industry")
-        
+
         # Simulate network delay
         await asyncio.sleep(0.3)
-        
+
         return demo_results
-    
+
     async def _get_demo_company_details(self, company_name: str) -> List[Dict[str, Any]]:
         """Generate demo company details when real API is unavailable"""
-        
+
         demo_results = [
             {
                 "title": f"{company_name} - Company Overview",
@@ -870,15 +870,15 @@ class TavilyService:
                 "search_type": "demo_company_details"
             }
         ]
-        
+
         logger.info(f"Generated {len(demo_results)} demo company detail records for {company_name}")
         await asyncio.sleep(0.3)
-        
+
         return demo_results
-    
+
     async def _get_demo_custom_search(self, query: str, search_type: str) -> List[Dict[str, Any]]:
         """Generate demo search results for custom queries"""
-        
+
         demo_results = [
             {
                 "title": f"Search Results for: {query[:50]}",
@@ -905,8 +905,8 @@ class TavilyService:
                 "search_type": f"demo_{search_type}"
             }
         ]
-        
+
         logger.info(f"Generated {len(demo_results)} demo custom search results for query: {query[:50]}")
         await asyncio.sleep(0.2)
-        
+
         return demo_results

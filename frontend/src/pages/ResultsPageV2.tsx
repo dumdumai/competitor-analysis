@@ -64,14 +64,14 @@ const ResultsPageV2: React.FC = () => {
   // Auto-refresh for in-progress analysis
   useEffect(() => {
     let refreshInterval: NodeJS.Timeout;
-    
+
     if (analysisResult && (analysisResult.status === 'in_progress' || analysisResult.status === 'pending')) {
       // Refresh every 10 seconds for in-progress analysis
       refreshInterval = setInterval(() => {
         loadAnalysisResult();
       }, 10000);
     }
-    
+
     return () => {
       if (refreshInterval) {
         clearInterval(refreshInterval);
@@ -86,15 +86,15 @@ const ResultsPageV2: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const response = await analysisAPI.getAnalysisResult(requestId);
       setAnalysisResult(response.data);
-      
+
       // Also load search logs if analysis is completed
       if (response.data.status === 'completed') {
         loadSearchLogs();
       }
-      
+
     } catch (err: any) {
       console.error('Error loading analysis result:', err);
       setError(err?.response?.data?.detail || 'Failed to load analysis result');
@@ -125,8 +125,8 @@ const ResultsPageV2: React.FC = () => {
   const getSectionSearchLogs = (sectionType: string) => {
     switch (sectionType) {
       case 'competitors':
-        return searchLogs.filter(log => 
-          log.search_type === 'competitor_search' || 
+        return searchLogs.filter(log =>
+          log.search_type === 'competitor_search' ||
           log.search_type === 'company_details'
         );
       case 'market':
@@ -138,7 +138,7 @@ const ResultsPageV2: React.FC = () => {
 
   const handleRestartAnalysis = () => {
     if (!analysisResult) return;
-    
+
     // Create prefilled form data from current analysis
     const formData = {
       client_company: analysisResult.client_company || '',
@@ -148,21 +148,21 @@ const ResultsPageV2: React.FC = () => {
       specific_requirements: analysisResult.specific_requirements || '',
       max_competitors: analysisResult.max_competitors || 5
     };
-    
+
     // Navigate to analysis form with prefilled data
-    navigate('/analysis', { 
-      state: { 
+    navigate('/analysis', {
+      state: {
         prefillData: formData,
         isRestart: true,
         originalRequestId: requestId,
         originalCompany: analysisResult.client_company
-      } 
+      }
     });
   };
 
   if (loading) {
     return (
-      <Box sx={{ 
+      <Box sx={{
         minHeight: '100vh',
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         py: { xs: 2, md: 4 },
@@ -195,7 +195,7 @@ const ResultsPageV2: React.FC = () => {
 
   if (error) {
     return (
-      <Box sx={{ 
+      <Box sx={{
         minHeight: '100vh',
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         py: { xs: 2, md: 4 },
@@ -213,9 +213,9 @@ const ResultsPageV2: React.FC = () => {
             <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
               {error}
             </Typography>
-            <Button 
-              onClick={loadAnalysisResult} 
-              variant="contained" 
+            <Button
+              onClick={loadAnalysisResult}
+              variant="contained"
               fullWidth
               sx={{ textTransform: 'none', fontWeight: 600 }}
             >
@@ -229,7 +229,7 @@ const ResultsPageV2: React.FC = () => {
 
   if (!analysisResult) {
     return (
-      <Box sx={{ 
+      <Box sx={{
         minHeight: '100vh',
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         py: { xs: 2, md: 4 },
@@ -247,7 +247,7 @@ const ResultsPageV2: React.FC = () => {
             <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
               The analysis you're looking for doesn't exist or may have been removed.
             </Typography>
-            <Button 
+            <Button
               component={Link}
               to="/home"
               variant="outlined"
@@ -284,7 +284,7 @@ const ResultsPageV2: React.FC = () => {
   // Special handling for in-progress analysis (but not human_review stage)
   if ((analysisResult.status === 'in_progress' || analysisResult.status === 'pending') && analysisResult.current_stage !== 'human_review') {
     return (
-      <Box sx={{ 
+      <Box sx={{
         minHeight: '100vh',
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         py: { xs: 2, md: 4 },
@@ -295,9 +295,9 @@ const ResultsPageV2: React.FC = () => {
           <Card sx={{ borderRadius: 2, boxShadow: 3, mb: { xs: 3, md: 4 } }}>
             <CardContent sx={{ p: { xs: 3, md: 4 } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <IconButton 
-                  component={Link} 
-                  to="/home" 
+                <IconButton
+                  component={Link}
+                  to="/home"
                   sx={{ color: 'text.secondary' }}
                 >
                   <ArrowLeft size={20} />
@@ -311,11 +311,11 @@ const ResultsPageV2: React.FC = () => {
                       {analysisResult.industry}
                     </Typography>
                     <Typography variant="body1" color="text.secondary">•</Typography>
-                    <Chip 
-                      label="Analysis in Progress" 
-                      size="small" 
-                      color="warning" 
-                      sx={{ fontWeight: 500 }} 
+                    <Chip
+                      label="Analysis in Progress"
+                      size="small"
+                      color="warning"
+                      sx={{ fontWeight: 500 }}
                     />
                   </Box>
                 </Box>
@@ -326,7 +326,7 @@ const ResultsPageV2: React.FC = () => {
           {/* Progress Content */}
           {/* Workflow Visualization */}
           <Box sx={{ mb: { xs: 3, md: 4 } }}>
-            <WorkflowVisualization 
+            <WorkflowVisualization
               currentStage={analysisResult.current_stage}
               status={analysisResult.status}
               requestId={analysisResult.request_id}
@@ -338,7 +338,7 @@ const ResultsPageV2: React.FC = () => {
               onRefresh={loadAnalysisResult}
             />
           </Box>
-          
+
           <Card sx={{ borderRadius: 2, boxShadow: 3, textAlign: 'center' }}>
             <CardContent sx={{ p: { xs: 4, md: 6 } }}>
               <Box sx={{ display: 'flex', justifyContent: 'center', mb: 4 }}>
@@ -350,11 +350,11 @@ const ResultsPageV2: React.FC = () => {
               <Typography variant="h6" color="text.secondary" sx={{ mb: 4 }}>
                 We're analyzing the competitive landscape for <strong>{analysisResult.client_company}</strong> in the <strong>{analysisResult.industry}</strong> industry.
               </Typography>
-              
+
               <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
                 This usually takes 2-5 minutes to complete.
               </Typography>
-              <Button 
+              <Button
                 onClick={loadAnalysisResult}
                 variant="contained"
                 color="warning"
@@ -370,7 +370,7 @@ const ResultsPageV2: React.FC = () => {
   }
 
   return (
-    <Box sx={{ 
+    <Box sx={{
       minHeight: '100vh',
       background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       py: { xs: 2, md: 4 },
@@ -382,21 +382,21 @@ const ResultsPageV2: React.FC = () => {
           <Card sx={{ borderRadius: 2, boxShadow: 3, mb: 2, backgroundColor: '#ff9800', color: 'white' }}>
             <CardContent sx={{ p: 2 }}>
               <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                DEBUG: Status={analysisResult.status}, Stage={analysisResult.current_stage}, 
+                DEBUG: Status={analysisResult.status}, Stage={analysisResult.current_stage},
                 Condition={(analysisResult.status === 'in_progress' || analysisResult.status === 'pending') && analysisResult.current_stage !== 'human_review' ? 'SHOW_PROGRESS' : 'SHOW_RESULTS'}
               </Typography>
             </CardContent>
           </Card>
         )}
-        
+
         {/* Header */}
         <Card sx={{ borderRadius: 2, boxShadow: 3, mb: { xs: 3, md: 4 } }}>
           <CardContent sx={{ p: { xs: 3, md: 4 } }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <IconButton 
-                  component={Link} 
-                  to="/home" 
+                <IconButton
+                  component={Link}
+                  to="/home"
                   sx={{ color: 'text.secondary' }}
                 >
                   <ArrowLeft size={20} />
@@ -410,23 +410,23 @@ const ResultsPageV2: React.FC = () => {
                       {analysisResult.industry}
                     </Typography>
                     <Typography variant="body1" color="text.secondary">•</Typography>
-                    <Chip 
+                    <Chip
                       label={
-                        analysisResult.status === 'completed' 
+                        analysisResult.status === 'completed'
                           ? 'Completed'
-                          : (analysisResult.current_stage === 'human_review' 
+                          : (analysisResult.current_stage === 'human_review'
                               ? 'Review Required'
                               : analysisResult.status)
-                      } 
-                      size="small" 
+                      }
+                      size="small"
                       color={
-                        analysisResult.status === 'completed' 
+                        analysisResult.status === 'completed'
                           ? 'success'
-                          : (analysisResult.current_stage === 'human_review' 
+                          : (analysisResult.current_stage === 'human_review'
                               ? 'warning'
                               : 'default')
-                      } 
-                      sx={{ fontWeight: 500, textTransform: 'capitalize' }} 
+                      }
+                      sx={{ fontWeight: 500, textTransform: 'capitalize' }}
                     />
                   </Box>
                 </Box>
@@ -435,8 +435,8 @@ const ResultsPageV2: React.FC = () => {
                 onClick={handleRestartAnalysis}
                 variant="outlined"
                 startIcon={<RefreshCw size={16} />}
-                sx={{ 
-                  textTransform: 'none', 
+                sx={{
+                  textTransform: 'none',
                   fontWeight: 600,
                   color: 'text.secondary',
                   borderColor: 'text.secondary',
@@ -464,11 +464,11 @@ const ResultsPageV2: React.FC = () => {
                     {analysisResult.status === 'completed' ? 'Quality Review Available' : 'Human Review Required'}
                   </Typography>
                   <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-                    {analysisResult.status === 'completed' 
+                    {analysisResult.status === 'completed'
                       ? 'This analysis has quality review data available for inspection. You can review the quality assessment and any issues found during analysis.'
                       : 'This analysis requires human review before completion. The AI workflow has completed initial processing but needs your review to finalize the results.'}
                   </Typography>
-                  
+
                   {/* Show debug info if data is empty */}
                   {(analysisResult.competitors?.length === 0 && analysisResult.current_stage === 'human_review') && (
                     <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', mb: 2 }}>
@@ -477,9 +477,9 @@ const ResultsPageV2: React.FC = () => {
                   )}
                 </Box>
               </Box>
-              
+
               <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                <Button 
+                <Button
                   variant="contained"
                   color="warning"
                   onClick={() => {
@@ -492,7 +492,7 @@ const ResultsPageV2: React.FC = () => {
                   {analysisResult.status === 'completed' ? 'View Quality Review' : 'Start Review Process'}
                 </Button>
                 {analysisResult.status === 'in_progress' && (
-                  <Button 
+                  <Button
                     variant="outlined"
                     color="warning"
                     onClick={async () => {
@@ -500,7 +500,7 @@ const ResultsPageV2: React.FC = () => {
                       if (window.confirm('Are you sure you want to skip the review and proceed with available results? This will mark the analysis as completed.')) {
                         try {
                           console.log('🚀 Skipping review and submitting proceed decision...');
-                          
+
                           // Submit a proceed decision to complete the analysis
                           const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1'}/analysis/${requestId}/quality-review/decision`, {
                             method: 'POST',
@@ -514,7 +514,7 @@ const ResultsPageV2: React.FC = () => {
                               modified_params: {}
                             })
                           });
-                          
+
                           if (response.ok) {
                             console.log('✅ Proceed decision submitted successfully');
                             // Reload the analysis result to get updated status
@@ -535,7 +535,7 @@ const ResultsPageV2: React.FC = () => {
                     Skip Review & Complete
                   </Button>
                 )}
-                <Button 
+                <Button
                   variant="outlined"
                   onClick={loadAnalysisResult}
                   sx={{ fontWeight: 600, textTransform: 'none' }}
@@ -552,9 +552,9 @@ const ResultsPageV2: React.FC = () => {
         {forceShowReview && analysisResult.current_stage === 'human_review' && (
           <Card sx={{ borderRadius: 2, boxShadow: 3, mb: { xs: 3, md: 4 }, border: '2px solid', borderColor: 'warning.main' }}>
             <CardContent sx={{ p: 0 }}>
-              <Box sx={{ 
-                p: { xs: 2, md: 3 }, 
-                borderBottom: '1px solid', 
+              <Box sx={{
+                p: { xs: 2, md: 3 },
+                borderBottom: '1px solid',
                 borderColor: 'divider',
                 backgroundColor: 'warning.50'
               }}>
@@ -571,7 +571,7 @@ const ResultsPageV2: React.FC = () => {
                       onClick={handleRestartAnalysis}
                       variant="outlined"
                       startIcon={<RefreshCw size={16} />}
-                      sx={{ 
+                      sx={{
                         color: 'text.secondary',
                         borderColor: 'text.secondary',
                         '&:hover': {
@@ -594,8 +594,8 @@ const ResultsPageV2: React.FC = () => {
                 </Box>
               </Box>
               <Box sx={{ p: { xs: 2, md: 3 } }}>
-                <QualityReview 
-                  requestId={analysisResult.request_id} 
+                <QualityReview
+                  requestId={analysisResult.request_id}
                   onDecisionSubmitted={handleDecisionSubmitted}
                   onGoBack={() => setForceShowReview(false)}
                 />
@@ -610,10 +610,10 @@ const ResultsPageV2: React.FC = () => {
             <Typography variant="h4" component="h2" gutterBottom fontWeight="600" sx={{ mb: 3 }}>
               Analysis Summary
             </Typography>
-            <Box sx={{ 
-              display: 'grid', 
-              gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, 
-              gap: 3 
+            <Box sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' },
+              gap: 3
             }}>
               <Paper sx={{ p: 3, textAlign: 'center', backgroundColor: '#f5f5f5', border: '1px solid #e0e0e0' }}>
                 <Typography variant="body1" fontWeight="500" color="text.secondary" sx={{ mb: 1 }}>
@@ -649,7 +649,7 @@ const ResultsPageV2: React.FC = () => {
             <Typography variant="h4" component="h2" gutterBottom fontWeight="600" sx={{ mb: 3 }}>
               Analysis Process
             </Typography>
-            <WorkflowVisualization 
+            <WorkflowVisualization
               currentStage={analysisResult.current_stage || 'report'}
               status={analysisResult.status}
               requestId={analysisResult.request_id}
@@ -680,10 +680,10 @@ const ResultsPageV2: React.FC = () => {
                   <Bug size={16} />
                 </IconButton>
               </Box>
-              <Box sx={{ 
-                display: 'grid', 
-                gridTemplateColumns: { xs: '1fr', lg: 'repeat(2, 1fr)' }, 
-                gap: 3 
+              <Box sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', lg: 'repeat(2, 1fr)' },
+                gap: 3
               }}>
                 {analysisResult.competitors.map((competitor, index) => {
                   // Clean up competitor name if it looks like a raw data entry
@@ -715,49 +715,49 @@ const ResultsPageV2: React.FC = () => {
                           {cleanName(competitor.name)}
                         </Typography>
                         {competitor.market_position && (
-                          <Chip 
+                          <Chip
                             label={competitor.market_position}
                             size="small"
                             sx={{ fontSize: '0.75rem' }}
                           />
                         )}
                       </Box>
-                  
+
                       {competitor.website && (
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                          <Typography 
-                            component="a" 
-                            href={competitor.website} 
-                            target="_blank" 
+                          <Typography
+                            component="a"
+                            href={competitor.website}
+                            target="_blank"
                             rel="noopener noreferrer"
                             variant="body2"
-                            sx={{ 
-                              color: 'text.secondary', 
-                              textDecoration: 'none', 
-                              '&:hover': { 
+                            sx={{
+                              color: 'text.secondary',
+                              textDecoration: 'none',
+                              '&:hover': {
                                 textDecoration: 'underline',
                                 color: 'text.primary'
-                              } 
+                              }
                             }}
                           >
                             {competitor.website}
                           </Typography>
                         </Typography>
                       )}
-                      
+
                       {competitor.description && (
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 2, lineHeight: 1.6 }}>
-                          {competitor.description.length > 150 
-                            ? competitor.description.substring(0, 150) + '...' 
+                          {competitor.description.length > 150
+                            ? competitor.description.substring(0, 150) + '...'
                             : competitor.description}
                         </Typography>
                       )}
-                      
-                      <Box sx={{ 
-                        display: 'grid', 
-                        gridTemplateColumns: 'repeat(2, 1fr)', 
-                        gap: 2, 
-                        mb: 2 
+
+                      <Box sx={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(2, 1fr)',
+                        gap: 2,
+                        mb: 2
                       }}>
                         {competitor.business_model && (
                           <Box>
@@ -780,7 +780,7 @@ const ResultsPageV2: React.FC = () => {
                           </Box>
                         )}
                       </Box>
-                      
+
                       {competitor.strengths && competitor.strengths.length > 0 && (
                         <Box sx={{ mt: 2 }}>
                           <Typography variant="caption" fontWeight="500" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
@@ -788,11 +788,11 @@ const ResultsPageV2: React.FC = () => {
                           </Typography>
                           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                             {competitor.strengths.slice(0, 3).map((strength: string, idx: number) => (
-                              <Chip 
-                                key={idx} 
-                                label={strength} 
-                                size="small" 
-                                color="success" 
+                              <Chip
+                                key={idx}
+                                label={strength}
+                                size="small"
+                                color="success"
                                 variant="outlined"
                                 sx={{ fontSize: '0.75rem' }}
                               />
@@ -811,12 +811,13 @@ const ResultsPageV2: React.FC = () => {
         {/* Market Analysis */}
         {analysisResult.market_analysis && Object.keys(analysisResult.market_analysis).length > 0 && (() => {
           // Check if we have nested structure or flat structure
-          const marketData = analysisResult.market_analysis.market_data || analysisResult.market_analysis;
+          const marketData = analysisResult.market_analysis.analysis || analysisResult.market_analysis.market_data || analysisResult.market_analysis;
           console.log("marketData", marketData);
-          const hasNestedStructure = analysisResult.market_analysis.market_data;
-          
+          console.log("Full market_analysis structure:", analysisResult.market_analysis);
+          const hasNestedStructure = analysisResult.market_analysis.analysis || analysisResult.market_analysis.market_data;
+
           // Data is properly accessible via marketData
-          
+
           return (
             <Card sx={{ borderRadius: 2, boxShadow: 3, mb: { xs: 3, md: 4 } }}>
               <CardContent sx={{ p: { xs: 3, md: 4 } }}>
@@ -836,10 +837,10 @@ const ResultsPageV2: React.FC = () => {
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                   {/* Market Overview Cards */}
                   {(marketData.market_size || marketData.growth_trends || marketData.competitive_intensity) && (
-                    <Box sx={{ 
-                      display: 'grid', 
-                      gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, 
-                      gap: 3 
+                    <Box sx={{
+                      display: 'grid',
+                      gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' },
+                      gap: 3
                     }}>
                       {marketData.market_size && (
                         <Paper sx={{ p: 3, backgroundColor: '#f5f5f5', border: '1px solid #e0e0e0' }}>
@@ -867,7 +868,7 @@ const ResultsPageV2: React.FC = () => {
                           )}
                         </Paper>
                       )}
-                      
+
                       {marketData.competitive_intensity && (
                         <Paper sx={{ p: 3, backgroundColor: '#fff3e0', border: '1px solid #ffcc02' }}>
                           <Typography variant="h6" fontWeight="600" color="warning.main" sx={{ mb: 1 }}>
@@ -889,7 +890,7 @@ const ResultsPageV2: React.FC = () => {
                           )}
                         </Paper>
                       )}
-                      
+
                       {marketData.growth_trends && !Array.isArray(marketData.growth_trends) && (
                         <Paper sx={{ p: 3, backgroundColor: '#e3f2fd', border: '1px solid #2196f3' }}>
                           <Typography variant="h6" fontWeight="600" color="primary.main" sx={{ mb: 1 }}>
@@ -934,10 +935,10 @@ const ResultsPageV2: React.FC = () => {
 
                   {/* Opportunities and Threats (for nested structure) */}
                   {(marketData.opportunities || marketData.threats) && (
-                    <Box sx={{ 
-                      display: 'grid', 
-                      gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, 
-                      gap: 3 
+                    <Box sx={{
+                      display: 'grid',
+                      gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' },
+                      gap: 3
                     }}>
                       {marketData.opportunities && marketData.opportunities.length > 0 && (
                         <Paper sx={{ p: 3, backgroundColor: '#e8f5e8', border: '1px solid #4caf50' }}>
@@ -1005,7 +1006,7 @@ const ResultsPageV2: React.FC = () => {
                       </Typography>
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                         {marketData.key_players.map((player: string, index: number) => (
-                          <Chip 
+                          <Chip
                             key={index}
                             label={player}
                             sx={{ fontWeight: 500 }}
@@ -1049,10 +1050,10 @@ const ResultsPageV2: React.FC = () => {
                       </Typography>
                       {marketData.outlook && typeof marketData.outlook === 'object' && marketData.outlook.constructor === Object ? (
                         <Box>
-                          {marketData.outlook['12_month_outlook'] && typeof marketData.outlook['12_month_outlook'] === 'string' && (
+                          {(marketData.outlook['12_month_forecast'] || marketData.outlook['12_month_outlook']) && typeof (marketData.outlook['12_month_forecast'] || marketData.outlook['12_month_outlook']) === 'string' && (
                             <Box sx={{ mb: 2 }}>
                               <Typography variant="body1" fontWeight="500" color="text.primary" sx={{ mb: 1 }}>
-                                12-Month Outlook: {String(marketData.outlook['12_month_outlook'])}
+                                12-Month Outlook: {String(marketData.outlook['12_month_forecast'] || marketData.outlook['12_month_outlook'])}
                               </Typography>
                             </Box>
                           )}
@@ -1080,18 +1081,18 @@ const ResultsPageV2: React.FC = () => {
         })()}
 
         {/* Threats & Opportunities (separate section for flat structure) */}
-        {analysisResult.threats_opportunities && 
-         analysisResult.threats_opportunities.opportunities && 
+        {analysisResult.threats_opportunities &&
+         analysisResult.threats_opportunities.opportunities &&
          analysisResult.threats_opportunities.threats && (
           <Card sx={{ borderRadius: 2, boxShadow: 3, mb: { xs: 3, md: 4 } }}>
             <CardContent sx={{ p: { xs: 3, md: 4 } }}>
               <Typography variant="h4" component="h2" fontWeight="600" sx={{ mb: 3 }}>
                 Threats & Opportunities
               </Typography>
-              <Box sx={{ 
-                display: 'grid', 
-                gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, 
-                gap: 3 
+              <Box sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' },
+                gap: 3
               }}>
                 {/* Opportunities */}
                 {analysisResult.threats_opportunities.opportunities && analysisResult.threats_opportunities.opportunities.length > 0 && (
@@ -1144,9 +1145,9 @@ const ResultsPageV2: React.FC = () => {
               </Typography>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                 {analysisResult.recommendations.map((rec, index) => (
-                  <Paper 
-                    key={index} 
-                    sx={{ 
+                  <Paper
+                    key={index}
+                    sx={{
                       background: 'linear-gradient(to right, #fff8e1, #ffecb3)',
                       borderLeft: '4px solid #ffc107',
                       borderRadius: '0 8px 8px 0',
@@ -1186,32 +1187,32 @@ const ResultsPageV2: React.FC = () => {
       <Modal
         open={!!debugModalSection}
         onClose={() => setDebugModalSection(null)}
-        sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
           justifyContent: 'center',
           p: 2
         }}
       >
-        <Card sx={{ 
-          borderRadius: 2, 
-          boxShadow: 3, 
-          maxWidth: 600, 
-          width: '100%', 
-          maxHeight: '90vh', 
-          overflow: 'hidden' 
+        <Card sx={{
+          borderRadius: 2,
+          boxShadow: 3,
+          maxWidth: 600,
+          width: '100%',
+          maxHeight: '90vh',
+          overflow: 'hidden'
         }}>
           <CardContent sx={{ p: 0 }}>
-            <Box sx={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'space-between', 
-              p: 3, 
-              borderBottom: '1px solid #e0e0e0' 
+            <Box sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              p: 3,
+              borderBottom: '1px solid #e0e0e0'
             }}>
               <Typography variant="h6" fontWeight="600" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Bug size={20} color="#1976d2" />
-                {debugModalSection === 'competitors' ? 'Competitor Search Queries' : 
+                {debugModalSection === 'competitors' ? 'Competitor Search Queries' :
                  debugModalSection === 'market' ? 'Market Analysis Queries' : 'Search Queries'}
               </Typography>
               <IconButton
@@ -1221,11 +1222,11 @@ const ResultsPageV2: React.FC = () => {
                 <X size={20} />
               </IconButton>
             </Box>
-          
+
             <Box sx={{ p: 3, overflowY: 'auto', maxHeight: 'calc(90vh - 120px)' }}>
               {(() => {
                 const sectionLogs = getSectionSearchLogs(debugModalSection || '');
-                
+
                 if (searchLogs.length === 0) {
                   return (
                     <Box sx={{ textAlign: 'center', py: 4 }}>
@@ -1258,25 +1259,25 @@ const ResultsPageV2: React.FC = () => {
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                       Showing {sectionLogs.length} search quer{sectionLogs.length === 1 ? 'y' : 'ies'} used to populate this section:
                     </Typography>
-                    
+
                     {sectionLogs.map((log, index) => (
                       <Paper key={index} sx={{ border: '1px solid #e0e0e0', borderRadius: 2, p: 2 }}>
                         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
                           <Typography variant="h6" sx={{ flexShrink: 0, mt: 0.5 }}>
-                            {log.search_type === 'competitor_search' ? '🏢' : 
-                             log.search_type === 'company_details' ? '📋' : 
+                            {log.search_type === 'competitor_search' ? '🏢' :
+                             log.search_type === 'company_details' ? '📋' :
                              log.search_type === 'market_analysis' ? '📊' : '🔍'}
                           </Typography>
                           <Box sx={{ flex: 1 }}>
                             <Typography variant="body1" fontWeight="500" sx={{ mb: 1 }}>
                               {log.search_type.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
                             </Typography>
-                            <Paper sx={{ 
-                              fontFamily: 'monospace', 
-                              fontSize: '0.875rem', 
-                              backgroundColor: '#f5f5f5', 
-                              p: 1.5, 
-                              border: '1px solid #e0e0e0' 
+                            <Paper sx={{
+                              fontFamily: 'monospace',
+                              fontSize: '0.875rem',
+                              backgroundColor: '#f5f5f5',
+                              p: 1.5,
+                              border: '1px solid #e0e0e0'
                             }}>
                               "{log.query}"
                             </Paper>

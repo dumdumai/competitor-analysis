@@ -4,12 +4,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from loguru import logger
 import uvicorn
 from dotenv import load_dotenv
 
 # Load environment variables
-load_dotenv(dotenv_path='/app/backend/.env')
+load_dotenv(dotenv_path='.env')
 
 from database.connection import startup_event, shutdown_event
 from database.repositories import AnalysisRepository, ReportRepository
@@ -37,20 +38,20 @@ coordinator = None
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
     global tavily_service, redis_service, llm_service, coordinator
-    
+
     # Startup
     logger.info("Starting Competitor Analysis System...")
-    
+
     try:
         # Initialize database
         await startup_event()
-        
+
         # Initialize services
         tavily_service = TavilyService()
         redis_service = RedisService()
         await redis_service.connect()
         llm_service = LLMService()
-        
+
         # Initialize coordinator
         coordinator = CompetitorAnalysisCoordinator(
             tavily_service=tavily_service,
@@ -59,24 +60,24 @@ async def lifespan(app: FastAPI):
             analysis_repository=analysis_repository,
             report_repository=report_repository
         )
-        
+
         # Make services available to routes
         app.state.coordinator = coordinator
         app.state.analysis_repository = analysis_repository
         app.state.report_repository = report_repository
         app.state.redis_service = redis_service
-        
+
         logger.info("All services initialized successfully")
-        
+
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
         raise
-    
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down...")
-    
+
     try:
         if redis_service:
             await redis_service.disconnect()
@@ -123,6 +124,14 @@ app.include_router(reports_router, prefix="/api/v1", tags=["Reports"])
 app.include_router(products_router, prefix="/api/v1", tags=["Products"])
 app.include_router(websocket_router, prefix="/ws", tags=["WebSocket"])
 
+# Serve static files if enabled
+if os.getenv("SERVE_STATIC_FILES", "false").lower() == "true":
+    static_dir = os.path.join(os.path.dirname(__file__), "..", "static")
+    if os.path.exists(static_dir):
+        app.mount("/static", StaticFiles(directory=static_dir), name="static")
+        # Serve React app at root
+        app.mount("/", StaticFiles(directory=static_dir, html=True), name="frontend")
+
 
 # Global exception handler
 @app.exception_handler(Exception)
@@ -158,7 +167,7 @@ if __name__ == "__main__":
         retention="7 days",
         level="INFO"
     )
-    
+
     # Run the application
     uvicorn.run(
         "api.main:app",
