@@ -1,0 +1,20 @@
+# AWS Configuration
+aws_region   = "us-east-1"
+project_name = "competitor-analysis"
+environment  = "production"
+
+# Database Configuration
+db_username = "postgres"
+db_password = "your-secure-postgres-password"
+
+# MongoDB Atlas URI
+mongodb_uri = "mongodb+srv://username:password@cluster.mongodb.net/competitor-analysis?retryWrites=true&w=majority"
+
+# API Keys
+openai_api_key = "sk-your-openai-api-key"
+tavily_api_key = "tvly-your-tavily-api-key"
+
+# Optional: Azure OpenAI Configuration (if using Azure instead of OpenAI)
+# azure_openai_endpoint    = "https://your-resource.openai.azure.com/"
+# azure_openai_api_key     = "your-azure-openai-key"
+# azure_openai_deployment  = "gpt-4"
